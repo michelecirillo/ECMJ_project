@@ -20,7 +20,7 @@ begin
 end
 
 # ╔═╡ fb95fa16-48d6-47d5-b908-aa8e9b5cc6ae
-using Plots, LaTeXStrings
+using Plots, LaTeXStrings, StatsBase
 
 # ╔═╡ 29bc3a10-05de-11ed-387a-b70934c663f9
 md"""
@@ -316,27 +316,87 @@ begin
 	end
 end
 
-# ╔═╡ b51bdd59-e3da-44db-98df-761023e3c7ff
+# ╔═╡ 5788848a-5678-4915-9ad2-b6aa9b1bbc13
 md"""
-### Confronto temporale
-Confrontiamo i due algoritmi in base al tempo d'esecuzione: per farlo, usiamo la macro @elapsed e stampiamo i risultati in un grafico:
+Generiamo quindi degli items randomicamente ed eseguiamo i due algoritmi salvando i **tempi d'esecuzione** ed i **valori riportati** per confrontarli in base a:
+- la velocità d'esecuzione;
+- la precisione del valore della soluzione
 """
 
-# ╔═╡ 6cacb7ad-3e8b-4776-a7fd-3681b07034fd
-let
+# ╔═╡ e18e5ee8-1cfc-4252-b38e-8b73f7a5fa55
+begin
 	images = [load("./img/items/$i.png") for i=1:4] # Carichiamo le immagini
 	simulations = 100 # Numero di simulazioni da fare
-	greedy_results = [] # Riportiamo i tempi delle simulazioni usando l'algoritmo greedy
-	dyn_prog_results = [] # Riportiamo i tempi delle simulazioni usando l'algoritmo di programmazione dinamica
+	greedy_times = [] # Riportiamo i tempi delle simulazioni usando l'algoritmo greedy
+	greedy_results = [] # Riportiamo i valori delle simulazioni usando l'algoritmo greedy
+	dyn_prog_times = [] # Riportiamo i tempi delle simulazioni usando l'algoritmo di programmazione dinamica
+	dyn_prog_results = [] # Riportiamo i valori delle simulazioni usando l'algoritmo di programmazione dinamica
 	for i in 1:simulations
 		n = rand(1:10) # Numero di items
 		local items = [Item(images[rand(1:length(images))], rand(1:100), rand(1:100)) for _ in 1:n] # Generiamo n items con valori casuali
 		local W = rand(1:100) # Generiamo un limite casuale per la bisaccia
-		append!(greedy_results, (@elapsed greedy_knapsack(items, W)) * exp10(6)) # Salviamo il tempo di esecuzione dell'algoritmo greedy
-		append!(dyn_prog_results,(@elapsed local_knapsack(items, W)) * exp10(6)) # Salviamo il tempo di esecuzione dell'algoritmo di programmazione dinamica
+		# Salviamo il tempo di esecuzione dell'algoritmo greedy
+		append!(greedy_times, (@elapsed greedy_knapsack(items, W)) * exp10(6)) 
+		# Salviamo il tempo di esecuzione dell'algoritmo di programmazione dinamica
+		append!(dyn_prog_times, (@elapsed local_knapsack(items, W)) * exp10(6)) 
+		# Salviamo i valori riportati dall'algoritmo greedy
+		append!(greedy_results, solution_value(greedy_knapsack(items, W)))
+		# Salviamo i valori riportati dall'algoritmo di programmazione dinamica
+		append!(dyn_prog_results, solution_value(local_knapsack(items, W)))
 	end
-	plot(1:simulations, [greedy_results, dyn_prog_results], title = "Time compare", xlabel= "i° tentativo", ylabel = L"Tempo ($\mu s$)", label = ["Greedy Knapsack" "DynProg Knapsakc"]) # Stampiamo il plot
+	greedy_times, dyn_prog_times, greedy_results, dyn_prog_results
 end
+
+# ╔═╡ b51bdd59-e3da-44db-98df-761023e3c7ff
+md"""
+### Confronto temporale
+Confrontiamo i due algoritmi in base al tempo d'esecuzione: per farlo, abbiamo usato la macro @elapsed. Stampiamo i risultati in un grafico:
+"""
+
+# ╔═╡ 3a793383-7c32-4a53-83de-5255666faaca
+scatter(1:simulations, [greedy_times, dyn_prog_times], title = "Time compare", xlabel= "i° tentativo", ylabel = L"Tempo ($\mu s$)", label = ["Greedy Knapsack" "DynProg Knapsack"]) # Stampiamo il plot
+
+# ╔═╡ 729c1c65-13ed-450b-9cb2-cc4510066ca9
+md"""
+Come possiamo vedere dal grafico, i tempi d'esecuzione dell'algoritmo greedy sono sensibilmente più brevi, in particolare: in media sono più brevi di un fattore:
+"""
+
+# ╔═╡ de2b8e88-7fc7-4458-b6e5-f9232c762604
+mean(dyn_prog_times)/mean(greedy_times)
+
+# ╔═╡ dd24d626-109d-47ca-b944-2490589b01ba
+md"""
+Mentre nel caso migliore, il risparmio temporale è di un fattore:
+"""
+
+# ╔═╡ 649f1a93-a4f4-4f8f-911a-fc284e1d234b
+maximum(dyn_prog_times./greedy_times)
+
+# ╔═╡ 2ad6a252-1efe-41d6-accc-cc78e6605260
+md"""
+### Confronto tra valori
+Vediamo ora quante volte e di quanto "sbaglia" l'algoritmo greedy rispetto a quello di programmazione dinamica.\
+Mettiamo a confronto i risultati dati dall'algoritmo di programmazione dinamica, che sappiamo essere ottimali, rispetto a quelli dati dall'algoritmo greedy, e derivare da queste simulazioni un fattore d'approssimazione per quest'ultimo algoritmo:
+"""
+
+# ╔═╡ 3f3b7bf7-f4e3-4a52-bbba-0cb83dacc9d0
+scatter(1:simulations, [greedy_results, dyn_prog_results], title = "Value compare", xlabel= "i° tentativo", ylabel = "Valore della soluzione", label = ["Greedy Knapsack" "DynProg Knapsack"]) # Stampiamo il plot
+
+# ╔═╡ 0c58c643-fcec-43c6-9889-3dc6ba864868
+md"""
+Come già sapevamo, l'algoritmo greedy non sempre raggiunge il valore ottimo, anche se mediamente la perdita, almeno per questa distribuzione di numeri aleatori con cui abbiamo generato le variabili, non è male... Da queste simulazioni vediamo che, in media, il fattore d'approssimazione è
+"""
+
+# ╔═╡ 109ac79b-c387-46d3-943c-57ce0c2e7b34
+mean(dyn_prog_results)/mean(greedy_results)
+
+# ╔═╡ df2780f2-23b9-4612-a435-3c0913b701b2
+md"""
+Mentre il fattore d'approssimazione nel caso peggiore è:
+"""
+
+# ╔═╡ 510426c3-c75f-4333-9d39-1ae784392ebc
+maximum((x -> isnan(x) ? 0 : x).(dyn_prog_results ./ greedy_results))
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -345,12 +405,14 @@ Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
 Images = "~0.25.2"
 LaTeXStrings = "~1.3.0"
 Plots = "~1.31.3"
 PlutoUI = "~0.7.39"
+StatsBase = "~0.33.19"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -1806,8 +1868,20 @@ version = "0.9.1+5"
 # ╠═674caa02-388e-4c91-9bf6-c74e85e2e271
 # ╟─60db0532-53a4-4c21-9cfb-e2450a3e3075
 # ╠═1484793a-8a7d-44d2-80be-919faadcb7ad
+# ╠═5788848a-5678-4915-9ad2-b6aa9b1bbc13
+# ╠═e18e5ee8-1cfc-4252-b38e-8b73f7a5fa55
 # ╠═b51bdd59-e3da-44db-98df-761023e3c7ff
 # ╠═fb95fa16-48d6-47d5-b908-aa8e9b5cc6ae
-# ╠═6cacb7ad-3e8b-4776-a7fd-3681b07034fd
+# ╠═3a793383-7c32-4a53-83de-5255666faaca
+# ╟─729c1c65-13ed-450b-9cb2-cc4510066ca9
+# ╠═de2b8e88-7fc7-4458-b6e5-f9232c762604
+# ╟─dd24d626-109d-47ca-b944-2490589b01ba
+# ╠═649f1a93-a4f4-4f8f-911a-fc284e1d234b
+# ╟─2ad6a252-1efe-41d6-accc-cc78e6605260
+# ╠═3f3b7bf7-f4e3-4a52-bbba-0cb83dacc9d0
+# ╟─0c58c643-fcec-43c6-9889-3dc6ba864868
+# ╠═109ac79b-c387-46d3-943c-57ce0c2e7b34
+# ╟─df2780f2-23b9-4612-a435-3c0913b701b2
+# ╠═510426c3-c75f-4333-9d39-1ae784392ebc
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
