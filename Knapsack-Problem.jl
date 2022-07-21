@@ -15,21 +15,20 @@ macro bind(def, element)
 end
 
 # ╔═╡ 565a291c-2f40-4af9-8c2c-8b9a472153fd
-begin
-	using PlutoUI, Images
-end
+using PlutoUI, Images
 
 # ╔═╡ fb95fa16-48d6-47d5-b908-aa8e9b5cc6ae
 using Plots, LaTeXStrings, StatsBase
 
 # ╔═╡ 29bc3a10-05de-11ed-387a-b70934c663f9
 md"""
-# Knapsack problem
+# [Knapsack problem](https://en.wikipedia.org/wiki/Knapsack_problem)
 """
 
 # ╔═╡ 5116ba76-3cad-4d29-82dd-23042fa16165
 md"""
-Il problema dello **bisaccia** è un problema di ottimizzazione combinatoria: dato un insieme di **articoli**, ciascuno con un **peso** e un **valore**, determinare quali elementi includere in una **collezione** in modo che il peso totale sia inferiore o uguale a un dato **limite** e il **valore totale** sia **il più grande possibile**. Deriva il suo nome dal problema affrontato da chiunque sia vincolato da uno zaino di dimensioni fisse e deve riempirlo con gli oggetti più preziosi. Il problema sorge spesso nell'allocazione delle risorse in cui i decisori devono scegliere tra una serie di progetti o compiti non divisibili rispettivamente nell'ambito di un budget fisso o di un vincolo di tempo.
+Il problema dello **bisaccia** è un problema di ottimizzazione combinatoria: dato un insieme di **oggetti**, ciascuno con un **peso** e un **valore**, determinare quali elementi includere in una **collezione** in modo che il peso totale sia inferiore o uguale a un dato **limite** e il **valore totale** sia **il più grande possibile**. Deriva il suo nome dal problema affrontato da chiunque sia vincolato da uno zaino di dimensioni fisse e deve riempirlo con gli oggetti più preziosi. Il problema sorge spesso nell'allocazione delle risorse in cui i decisori devono scegliere tra una serie di progetti o compiti non divisibili in base ad un budget fisso o di un vincolo di tempo, rispettivamente.\
+Definiamo quindi il **valore di una soluzione** nel seguente modo:
 """
 
 # ╔═╡ 2c3c5167-204a-4ab9-a2bf-772e4b7910b6
@@ -65,19 +64,25 @@ begin
 
 	# Definisco gli elementi del nostro esempio
 	items = [
-		Item(load("./img/items/1.png"),10,2), 
-		Item(load("./img/items/2.png"), 20,5),
-		Item(load("./img/items/3.png"), 25,8),
-		Item(load("./img/items/4.png"), 8,3)
+		Item(load("./img/items/1.png"), 10, 2), 
+		Item(load("./img/items/2.png"), 20, 5),
+		Item(load("./img/items/3.png"), 25, 8),
+		Item(load("./img/items/4.png"), 8, 3)
 	]
 end
 
 # ╔═╡ 946ec7e6-77a1-4879-8782-8e6d2a5ccd54
 begin
+	"""
+	La funziona ritorna il valore di una soluzione ammissibile (vettore di Item) al problema, ovvero la somma dei valori degli elementi che compongono la soluzione.
+	"""
 	function solution_value(solution::Vector{Item})::Int64
 		isempty(solution) ? 0 : sum(item.v for item in solution)
 	end
-	
+
+	"""
+	Ritorna una stringa che rappresenta la somma dei singoli Item, valore per valore
+	"""
 	function print_solution_value(solution::Vector{Item})
 		join(["$(solution[i].v) + " for i=1:length(solution)-1]) * "$(solution[end].v) = $(solution_value(solution))"
 	end
@@ -94,7 +99,7 @@ end
 
 # ╔═╡ c6d0b3ba-f304-4946-8e4a-95470e2ed8ab
 md"""
-Una possibile **soluzione ammissibile** al problema potrebbe essere la seguente:
+Una **soluzione ammissibile** al problema potrebbe essere la seguente:
 """
 
 # ╔═╡ c110a361-cd9b-4a82-9d2e-3a173b8bcc43
@@ -114,15 +119,15 @@ end
 # ╔═╡ b5eab760-9905-4cd4-b017-ff492283b620
 md"""
 Come vedremo, questa è una soluzione al problema, ma non è la soluzione **ottima**.
-Un approccio di risoluzione potrebbe essere sicuramente quello di enumerare tutti i possibili sott'insiemi degli oggetti, selezionare solamente quelli ammissibili (ovvero, i sott'insiemi $E_j$ con somma dei pesi minore di $W$, formalmente $\sum_{i=1}^{E_j}w_i≤W$) e trovare il sott'insieme di valore totale degli elementi massimo tra questi: $argmax_j\sum_{i=1}^{E_j}v_i$.\
-Siccome sappiamo che i possibili sott'insiemi di un insieme di $n$ elementi sono $2^n$, la complessità di questo algoritmo sarà dell'ordine di $\mathcal{O}(2^n)$.\
-Come vedremo, cercheremo di fare qualcosa di meglio.
+Un approccio di risoluzione potrebbe essere sicuramente quello di enumerare tutti i possibili sott'insiemi degli oggetti, selezionare solamente quelli ammissibili (ovvero, i sott'insiemi $E_j$ con somma dei pesi minore di $W$, formalmente $\sum_{i=1}^{E_j}w_i≤W$) e trovare il sott'insieme di valore massimo tra questi: $argmax_j\sum_{i=1}^{E_j}v_i$.\
+Siccome sappiamo che i possibili sott'insiemi di un insieme di $n$ elementi sono $2^n$, la complessità di questo algoritmo sarà dell'ordine di $\Omega(2^n)$.\
+Come vedremo, cercheremo di fare meglio.
 """
 
 # ╔═╡ 30955cbe-c4bf-4a8b-be50-2136bfadb4ba
 md"""
 ## Una falsa partenza
-Un primo tentativo di risoluzione che può venire in mente per trovare una soluzione ottima effecientemente potrebbe essere quello di utilizzare un approccio **greedy**: ordina gli elementi in base al loro rapporto $\frac{v_i}{w_i}$ (*valore/peso*) decrescente ed inserisci gli elementi finché è possibile.\
+Un primo tentativo di risoluzione che può venire in mente per trovare una soluzione ottima effecientemente, potrebbe essere quello di utilizzare un approccio **greedy**: ordinare gli elementi in base al loro rapporto $\frac{v_i}{w_i}$ (*valore/peso*) decrescente ed inserire gli elementi finché è possibile.\
 Implementiamo quest'algoritmo.
 """
 
@@ -135,7 +140,7 @@ function greedy_knapsack(items::Vector{Item}, W::Int64)::Vector{Item}
 		# Se c'è spazio per il prossimo elemento, lo si aggiunge alla soluzione
 		if item.w ≤ W
 			push!(solution,item)
-			W-=item.w
+			W -= item.w
 		end
 	end
 	solution
@@ -151,7 +156,7 @@ feasible_solution = greedy_knapsack(items, W)
 
 # ╔═╡ 82599cd2-e5bd-4436-b2c3-0336c7902544
 md"""
-Step dell'algoritmo:\
+Gli step eseguiti dall'algoritmo sono i seguenti:\
 $step =$ $(@bind step Slider(1:length(feasible_solution), show_value = true, default=1))
 """
 
@@ -160,7 +165,7 @@ feasible_solution[1:step]
 
 # ╔═╡ 1dfb5dfe-2c2b-4363-afa0-390ea0e5261e
 md"""
-Di costo:
+La soluzione trovata dall'algoritmo greedy ha quindi un valore di:
 """
 
 # ╔═╡ 199f0402-d69a-457c-9dcf-7021e2dea749
@@ -173,16 +178,16 @@ Come vedremo, la soluzione restituita dall'algoritmo greedy non è ottima.
 
 # ╔═╡ 9512ffed-89e0-46b4-ada6-2a5334382100
 md"""
-## L'approccio programmazione dinamica
+## L'approccio di programmazione dinamica
 """
 
 # ╔═╡ d64c9e42-c17f-4fad-bd19-86b8367224ac
 md"""
-Utilizziamo ora l'approccio di programmazione dinamica e dividiamo il nostro problema in sottoproblemi sovrapposti. Definiamo l'**ottimo** di un sott'insieme formato dai primi i elementi:\
+Utilizziamo ora l'approccio di programmazione dinamica e dividiamo il nostro problema in sottoproblemi sovrapposti. Definiamo l'**ottimo** di un sott'insieme formato dai primi $i$ elementi:\
 **Def.** $OPT(i,w) =$ massimo profitto del sott'insieme di elementi $1,...,i$ con il limite di peso $w$\
 Distinguiamo due casi:
 - **Caso 1:** **_OPT_** non seleziona l'elemento $i$.
-  - **_OPT_** seleziona il l'ottimo di $\{1,2,...,i-1\}$ usando il limite di peso $w$
+  - **_OPT_** seleziona l'ottimo di $\{1,2,...,i-1\}$ usando il limite di peso $w$
 - **Caso 2:** **_OPT_** seleziona l'elemento $i$.
   - il nuovo limite di peso $= w - w_i$
   - **_OPT_** seleziona l'ottimo di $\{1,2,...,i-1\}$ usando il **nuovo limite di peso**
@@ -190,7 +195,7 @@ Distinguiamo due casi:
 
 # ╔═╡ 3ebbe694-85dc-4754-8ea4-e845be6ff77e
 md"""
-Definiamo quindi una matrice di $n$ righe e $W$ colonne che rappresenta i sottoproblemi sovrapposti come gli abbiamo definiti. Una proprietà importante del problema che va sottolineata è che per calcolare la riga $i$ abbiamo bisogno solamente delle righe $j<i$!
+Definiamo quindi una matrice di $n+1$ righe e $W+1$ colonne che rappresenta i sottoproblemi sovrapposti come li abbiamo definiti. Una proprietà importante del problema che va sottolineata è che per calcolare la riga $i$ abbiamo bisogno solamente delle righe $j<i$
 """
 
 # ╔═╡ a53e5a69-59df-4c4e-b858-ce750d869cf4
@@ -221,7 +226,7 @@ Implementiamo ora l'algoritmo di programmazione dinamica **Knapsack**
 
 # ╔═╡ 0a01fc94-e91c-4413-89e5-956dc3df4769
 """
-Funzione che risolve il problema **knapsack**.
+Funzione che risolve il problema **knapsack** utilizzando la tecnica della programmazione dinamica.
 
 Ritorna la soluzione ottima
 """
@@ -236,7 +241,7 @@ end
 
 # ╔═╡ 8721e42f-327a-4704-a1e4-20ee7feeeffe
 md"""
-Step dell'algoritmo:\
+Step dell'algoritmo: come viene riempita la matrice OPT\
 i= $(@bind i Scrubbable(1:n+1, default = 1))
 w= $(@bind w Scrubbable(1:W+1, default = 1))
 """
@@ -246,7 +251,7 @@ OPT[i,w]
 
 # ╔═╡ 5806879e-2287-43a5-8b80-2c1567ef9da0
 md"""
-Eseguiamolo sulla nostra istanza del problema:
+Eseguiamo l'algoritmo sulla nostra istanza del problema:
 """
 
 # ╔═╡ 3b80cc62-25b5-4c65-89d0-cf27ea2bb675
@@ -267,7 +272,7 @@ Ora che abbiamo i due algoritmi a disposizione può essere utile confrontarli pe
 Abbiamo un algoritmo che trova una soluzione ottima, perché non dovremmo usarlo?\
 La motivazione principale è che, mentre l'algoritmo greedy si occupa principalmente di ordinare gli elementi (che sappiamo avere un costo $\mathcal{O}(n \cdot logn)$) in base al loro rapporto $\frac{valore}{peso}$, l'algoritmo con programmazione dinamica alloca, scrive e legge una matrice di dimensione $(n+1)\cdot (W+1)$, la sua complessità è quindi un $\mathcal{O}(n\cdot W)$.\
 Il suo tempo di esecuzione non è una funzione polinomiale di n; piuttosto, è una funzione polinomiale di n e W, il più grande numero intero coinvolto nella definizione del problema. Algoritmi del genere sono detti **algoritmi pseudo-polinomiali**. Gli algoritmi pseudo-polinomiali possono essere ragionevolmente efficienti quando i numeri $\{w_i\}$ coinvolti nell'input sono ragionevolmente piccoli; tuttavia, diventano meno pratici man mano che questi numeri diventano grandi.\
-Vogliamo quindi confrontare i due algoritmi in base a vari parametri come _tempo di esecuzione_, _approssimazione_, ecc...\
+Vogliamo quindi confrontare i due algoritmi in base a vari parametri come _tempo di esecuzione_, _fattore d'approssimazione_, ecc...\
 Prima di far ciò, ridefiniamo le nostre funzioni in modo che prendano in input dei parametri che facciamo variare randomicamente.
 """
 
@@ -278,8 +283,8 @@ begin
 	# Arguments
 	- i: ith element
 	- w: remaining capacity
-	- items: istance items
-	- W: whole knapsack capacity
+	- items: vettore di Item
+	- W: capacità della bisaccia
 	- OPT: matrix of optimal value of the subproblems
 	"""
 	function local_opt(i, w, items::Vector{Item}, W::Int64, OPT::Matrix{Vector{Any}})::Vector{Item}
@@ -297,12 +302,12 @@ begin
 	end
 
 	"""
-	Funzione che risolve il problema **knapsack**.
+	Funzione che risolve il problema **knapsack** utilizzando la tecnica della programmazione dinamica.
 	
 	Ritorna la soluzione ottima.
 	# Arguments
-	- items: istance items
-	- W: whole knapsack capacity
+	- items: vettore di Item
+	- W: capacità della bisaccia
 	"""
 	function local_knapsack(items::Vector{Item}, W::Int64)::Vector{Item}
 		n = length(items)
@@ -320,17 +325,18 @@ end
 md"""
 Generiamo quindi degli items randomicamente ed eseguiamo i due algoritmi salvando i **tempi d'esecuzione** ed i **valori riportati** per confrontarli in base a:
 - la velocità d'esecuzione;
-- la precisione del valore della soluzione
+- la precisione del valore della soluzione calcolata.
 """
 
 # ╔═╡ e18e5ee8-1cfc-4252-b38e-8b73f7a5fa55
-begin
-	images = [load("./img/items/$i.png") for i=1:4] # Carichiamo le immagini
+begin	
+	images = [load("./img/items/$i.png") for i=1:4] # Carichiamo le immagini degli items
 	simulations = 100 # Numero di simulazioni da fare
-	greedy_times = [] # Riportiamo i tempi delle simulazioni usando l'algoritmo greedy
+	greedy_times = [] # Riportiamo i tempi (in microsecondi) delle simulazioni usando l'algoritmo greedy
 	greedy_results = [] # Riportiamo i valori delle simulazioni usando l'algoritmo greedy
-	dyn_prog_times = [] # Riportiamo i tempi delle simulazioni usando l'algoritmo di programmazione dinamica
+	dyn_prog_times = [] # Riportiamo i tempi (in microsecondi) delle simulazioni usando l'algoritmo di programmazione dinamica
 	dyn_prog_results = [] # Riportiamo i valori delle simulazioni usando l'algoritmo di programmazione dinamica
+	
 	for i in 1:simulations
 		n = rand(1:10) # Numero di items
 		local items = [Item(images[rand(1:length(images))], rand(1:100), rand(1:100)) for _ in 1:n] # Generiamo n items con valori casuali
@@ -344,13 +350,14 @@ begin
 		# Salviamo i valori riportati dall'algoritmo di programmazione dinamica
 		append!(dyn_prog_results, solution_value(local_knapsack(items, W)))
 	end
+	
 	greedy_times, dyn_prog_times, greedy_results, dyn_prog_results
 end
 
 # ╔═╡ b51bdd59-e3da-44db-98df-761023e3c7ff
 md"""
 ### Confronto temporale
-Confrontiamo i due algoritmi in base al tempo d'esecuzione: per farlo, abbiamo usato la macro @elapsed. Stampiamo i risultati in un grafico:
+Confrontiamo i due algoritmi in base al tempo d'esecuzione: per farlo, abbiamo usato la macro `@elapsed`. Stampiamo i risultati in un grafico:
 """
 
 # ╔═╡ 3a793383-7c32-4a53-83de-5255666faaca
@@ -384,7 +391,17 @@ scatter(1:simulations, [greedy_results, dyn_prog_results], title = "Value compar
 
 # ╔═╡ 0c58c643-fcec-43c6-9889-3dc6ba864868
 md"""
-Come già sapevamo, l'algoritmo greedy non sempre raggiunge il valore ottimo, anche se mediamente la perdita, almeno per questa distribuzione di numeri aleatori con cui abbiamo generato le variabili, non è male... Da queste simulazioni vediamo che, in media, il fattore d'approssimazione è
+Come già sapevamo, l'algoritmo greedy non sempre raggiunge il valore ottimo, anche se mediamente la perdita, almeno per questa distribuzione di numeri aleatori con cui abbiamo generato le variabili, non è male... Da queste simulazioni vediamo che:
+
+Il numero di volte che l'algoritmo greedy sbaglia è:
+"""
+
+# ╔═╡ cecbac96-40fb-4bde-9292-589ea62ca5bb
+count(dyn_prog_results.≠greedy_results)//simulations
+
+# ╔═╡ f99a525f-766a-49fc-8a77-27c611089fb1
+md"""
+In media, il fattore d'approssimazione è:
 """
 
 # ╔═╡ 109ac79b-c387-46d3-943c-57ce0c2e7b34
@@ -392,7 +409,7 @@ mean(dyn_prog_results)/mean(greedy_results)
 
 # ╔═╡ df2780f2-23b9-4612-a435-3c0913b701b2
 md"""
-Mentre il fattore d'approssimazione nel caso peggiore è:
+Nel caso peggiore, il fattore d'approssimazione è:
 """
 
 # ╔═╡ 510426c3-c75f-4333-9d39-1ae784392ebc
@@ -1829,9 +1846,9 @@ version = "0.9.1+5"
 """
 
 # ╔═╡ Cell order:
-# ╟─29bc3a10-05de-11ed-387a-b70934c663f9
+# ╠═29bc3a10-05de-11ed-387a-b70934c663f9
 # ╠═565a291c-2f40-4af9-8c2c-8b9a472153fd
-# ╟─5116ba76-3cad-4d29-82dd-23042fa16165
+# ╠═5116ba76-3cad-4d29-82dd-23042fa16165
 # ╠═946ec7e6-77a1-4879-8782-8e6d2a5ccd54
 # ╟─2c3c5167-204a-4ab9-a2bf-772e4b7910b6
 # ╟─c2eece9b-1af8-429f-84aa-6cfbe052943f
@@ -1841,10 +1858,10 @@ version = "0.9.1+5"
 # ╠═7d7ea293-a047-497d-a140-32d35693191c
 # ╟─c6d0b3ba-f304-4946-8e4a-95470e2ed8ab
 # ╟─c110a361-cd9b-4a82-9d2e-3a173b8bcc43
-# ╠═1cc1cf11-f8f2-4b8d-b3a6-eb12539f0349
+# ╟─1cc1cf11-f8f2-4b8d-b3a6-eb12539f0349
 # ╠═4afa7572-35df-4a68-9402-fd04a9da512e
-# ╟─b5eab760-9905-4cd4-b017-ff492283b620
-# ╟─30955cbe-c4bf-4a8b-be50-2136bfadb4ba
+# ╠═b5eab760-9905-4cd4-b017-ff492283b620
+# ╠═30955cbe-c4bf-4a8b-be50-2136bfadb4ba
 # ╠═58cd0d11-ed34-47f8-99b3-dd67e72b6a9f
 # ╟─89f06296-db5c-4ff5-91bb-7f768d8e44f6
 # ╠═f4f4a323-7925-4142-8cc1-9e7b6a835304
@@ -1859,7 +1876,7 @@ version = "0.9.1+5"
 # ╟─3ebbe694-85dc-4754-8ea4-e845be6ff77e
 # ╠═a53e5a69-59df-4c4e-b858-ce750d869cf4
 # ╟─bab55d67-d673-4867-8171-fd78c4b8b6dc
-# ╠═0a01fc94-e91c-4413-89e5-956dc3df4769
+# ╟─0a01fc94-e91c-4413-89e5-956dc3df4769
 # ╟─8721e42f-327a-4704-a1e4-20ee7feeeffe
 # ╟─179de169-a3a4-4d92-a568-c0f7eaf0738b
 # ╟─5806879e-2287-43a5-8b80-2c1567ef9da0
@@ -1879,9 +1896,11 @@ version = "0.9.1+5"
 # ╠═649f1a93-a4f4-4f8f-911a-fc284e1d234b
 # ╟─2ad6a252-1efe-41d6-accc-cc78e6605260
 # ╠═3f3b7bf7-f4e3-4a52-bbba-0cb83dacc9d0
-# ╟─0c58c643-fcec-43c6-9889-3dc6ba864868
+# ╠═0c58c643-fcec-43c6-9889-3dc6ba864868
+# ╠═cecbac96-40fb-4bde-9292-589ea62ca5bb
+# ╠═f99a525f-766a-49fc-8a77-27c611089fb1
 # ╠═109ac79b-c387-46d3-943c-57ce0c2e7b34
-# ╟─df2780f2-23b9-4612-a435-3c0913b701b2
+# ╠═df2780f2-23b9-4612-a435-3c0913b701b2
 # ╠═510426c3-c75f-4333-9d39-1ae784392ebc
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
