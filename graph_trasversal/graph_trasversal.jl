@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.9
+# v0.19.8
 
 using Markdown
 using InteractiveUtils
@@ -14,427 +14,776 @@ macro bind(def, element)
     end
 end
 
-# ╔═╡ 565a291c-2f40-4af9-8c2c-8b9a472153fd
-using PlutoUI, Images
+# ╔═╡ 656ea700-045a-11ed-095e-41d8aa67b9af
+using Graphs, Plots, PlutoUI, GraphPlot, Colors, DataFrames, Compose
 
-# ╔═╡ fb95fa16-48d6-47d5-b908-aa8e9b5cc6ae
-using Plots, LaTeXStrings, StatsBase
+# ╔═╡ e4fefa2f-404f-4034-9744-b1ce8592f52e
+using DataStructures, SimpleWeightedGraphs
 
-# ╔═╡ 29bc3a10-05de-11ed-387a-b70934c663f9
-md"""
-# [Knapsack problem](https://en.wikipedia.org/wiki/Knapsack_problem)
-"""
-
-# ╔═╡ 5116ba76-3cad-4d29-82dd-23042fa16165
-md"""
-Il problema dello **bisaccia** è un problema di ottimizzazione combinatoria: dato un insieme di **oggetti**, ciascuno con un **peso** e un **valore**, determinare quali elementi includere in una **collezione** in modo che il peso totale sia inferiore o uguale a un dato **limite** e il **valore totale** sia **il più grande possibile**. Deriva il suo nome dal problema affrontato da chiunque sia vincolato da uno zaino di dimensioni fisse e deve riempirlo con gli oggetti più preziosi. Il problema sorge spesso nell'allocazione delle risorse in cui i decisori devono scegliere tra una serie di progetti o compiti non divisibili in base ad un budget fisso o di un vincolo di tempo, rispettivamente.\
-Definiamo quindi il **valore di una soluzione** nel seguente modo:
-"""
-
-# ╔═╡ 2c3c5167-204a-4ab9-a2bf-772e4b7910b6
-md"""
-## Formalmente
-- Abbiamo $n$ oggetti $\{1,...,n\}$ ed una "_bisaccia_"
-- L'oggetto $i$ pesa $w_i>0$ chili ed ha un valore $v_i>0$
-- La bisaccia ha una capacità di $W$ chili
-- **Obiettivo**: selezionare un sott'insieme di valore totale massimo, soggetto alla restrizione che il suo peso totale sia minore o uguale a $W$
-"""
-
-# ╔═╡ c2eece9b-1af8-429f-84aa-6cfbe052943f
-md"""
-## Un esempio
-Consideriamo la seguente possibile **istanza** del problema:
-"""
-
-# ╔═╡ b4c1e6e8-92f4-4558-a7ca-8378d2ed074a
-PlutoUI.LocalResource("./img/example.png")
-
-# ╔═╡ c26bde01-9489-42b1-a238-f356181137f4
-md"""
-Modelliamo gli oggetti come struct **Item**, caratterizzati da un *id*, un *valore* ed un *peso*
-"""
-
-# ╔═╡ c3c27e20-6c9f-41dc-8adc-9b96d8076ded
+# ╔═╡ 671e7283-7ff4-497a-afcc-ca1eb1d43591
 begin
-	struct Item
-		id::Matrix{RGB}
-		v::Int64
-		w::Int64
-	end
-
-	# Definisco gli elementi del nostro esempio
-	items = [
-		Item(load("./img/items/1.png"), 10, 2), 
-		Item(load("./img/items/2.png"), 20, 5),
-		Item(load("./img/items/3.png"), 25, 8),
-		Item(load("./img/items/4.png"), 8, 3)
-	]
+	# g = smallgraph(:karate)
+	# g = smallgraph(:house)
+	g = smallgraph(:frucht)
+	locs_x, locs_y = spring_layout(g)
 end
 
-# ╔═╡ 946ec7e6-77a1-4879-8782-8e6d2a5ccd54
+# ╔═╡ 7c8c95be-4e4b-4bf3-b541-7e73abf02bd2
 begin
-	"""
-	La funziona ritorna il valore di una soluzione ammissibile (vettore di Item) al problema, ovvero la somma dei valori degli elementi che compongono la soluzione.
-	"""
-	function solution_value(solution::Vector{Item})::Int64
-		isempty(solution) ? 0 : sum(item.v for item in solution)
+	# Struttura utile per creare le animazioni delle visiste
+	mutable struct Search
+		g::Union{AbstractGraph, AbstractSimpleWeightedGraph}
+		root::Int
+		search_tree::DiGraph
+		borders::Vector{Vector}
+		visit_order::Vector
+		Search(g::Union{AbstractGraph, AbstractSimpleWeightedGraph}, root::Int) = new(g, root, SimpleDiGraph(nv(g)), Vector[], Int[])
 	end
 
-	"""
-	Ritorna una stringa che rappresenta la somma dei singoli Item, valore per valore
-	"""
-	function print_solution_value(solution::Vector{Item})
-		join(["$(solution[i].v) + " for i=1:length(solution)-1]) * "$(solution[end].v) = $(solution_value(solution))"
+	function  add_step!(s::Search, nodes::Vector, from::Int)
+		push!(s.visit_order, from)
+		push!(s.borders, nodes)
 	end
 end
 
-# ╔═╡ 7d7ea293-a047-497d-a140-32d35693191c
+# ╔═╡ 26101d0d-05c8-46db-9371-a68ec9a7382d
 begin
-	# Definisco la capienza della nostra bisaccia
-	W = 13
+	using Random
+
+	function random_DFS(G::AbstractGraph, root::Int)::Search
+		search = Search(G, root)
+		add_step!(search, [root], root)
+		
+		S = Int[]
+		push!(S, root)
+		isExplored = Dict(vertices(G) .=> false)
+		isExplored[root] = true
+		
+		while !isempty(S)
+			u = pop!(S)
+			border = []
+			neighs = shuffle(neighbors(G, u))
+			for v ∈ neighs
+				if !isExplored[v]
+					isExplored[v] = true
+					push!(S, v)
+					push!(border, v)
+					add_edge!(search.search_tree, u, v)
+				end
+			end
+			add_step!(search, border, u)
+		end
+		search
+	end
+end
+
+# ╔═╡ dad001a0-ff58-4a62-8e2a-97ecfd8a491d
+md"""
+# Graph traversal
+In *computer science*, one of the most important problems is the **graph transversal** (or **graph search** or **graph visit**), that is the process of visiting the nodes of a graph.
+
+More precisely, given a graph $G (V, E)$ and a source $s \ in V$, we want to find a **path-tree** $T \subseteq E$ (not necessarily shortest) rooted in $s$.
+
+If $G$ turns out to be disconnected, $T$ would not be covering.
+"""
+
+# ╔═╡ 4b01c4be-ce31-4bf8-88b5-ce46070d986f
+md"""
+## Use cases
+One reason we want to find a path tree is to *navigate a map*.
+
+For example, if we model a map as a graph where the nodes are the road intersections and an edge between two nodes represents the roads between two intersections, with a **visit** on this graph we are able to identify the path from a point `A` to a point `B`.
+
+If we then know that $T$ is composed of only **shortest paths** (i.e. T is a *shortest-path-tree* SPT) then we know that the path between `A` and `B` we have found is optimal.
+
+Another classic example is the problem of **solving a maze**, which we will be interested in in this notebook.
+
+As before, we can model a maze as a graph.
+In this graph we have a node for each intersection, plus two extra nodes: one for the **entrance** and one for the **exit**.
+
+There is a border for each corridor in the maze.
+
+	How can we get out of it?
+
+Easy, by making a visit to the graph starting from the *entrance node*.
+"""
+
+# ╔═╡ e5bb9db5-2708-449a-a0ca-06daf96dba1d
+md"""
+## BFS - Breadth-first search
+In the **breadth-first-search** (in short **BFS**), the nodes are visited in **non-decreasing** order of distance from the source.
+
+Therefore, let source $s \in V$ and $d_G(s, v)$ be the **distance** of node $v$ from source $s$ in $G$, for all $v \in V$.
+
+The first node visited will be $s$, because $d_G(s, s) = 0$.
+Then all neighboring nodes $v \in N (s)$ (or all nodes at distance $d_G (s, v) = 1$) will be visited, where $N(s)$ is the neighborhood of $s$.
+Then, all the neighbors of the neighbors of $s$ will be visited, that is, all those nodes at distance $d_G (s, v) = 2$.
+
+And so on...
+"""
+
+# ╔═╡ 2ce9ffd9-594a-4325-b293-89caea578263
+md"""
+The algorithm works as follows:
+- create a $Q$ queue.
+- mark $s$ as visited and enter it in $Q$
+- until the queue is empty:
+   - remove the last element $u$ ($u$ = dequeue($Q$))
+   - for each neighboring $v$ of $u$:
+      - if $v$ is not marked as visited
+         - mark $v$ as visited
+         - put it in the queue
+         - make $v$ child of $u$ in the $T$ tree
+"""
+
+# ╔═╡ 4d3147fd-09fc-4a18-b7ae-3ca3a622013e
+md"""
+The time complexity of this algorithm is $O(|V| + |E|)$ because:
+- each node is added and removed from the $Q$ queue (at most if $G$ is connected) once. Since queuing and de-queuing take constant time we will have $O(|V|)$ time.
+2. for each visited node, all its neighbors (i.e. all its incident edges) are looked at. Therefore there will be a contribution of $\sum_{v \in V} \deg(v) \in O(|E|)$.
+
+In total $O(|V|+|E|)$.
+"""
+
+# ╔═╡ 888f8c53-08dd-489c-9902-36874ad8d96b
+root = 1
+
+# ╔═╡ 9457c3fc-7e83-486f-84b6-30a42697b6f1
+"""
+	Visita in ampiezza.
+Arguments:
+- `G::AbstractGraph` the graph
+- `root::Int64` the root node where the search starts
+Output:
+- `search::Search` the result of the BFS
+"""
+function BFS(G::AbstractGraph, root::Int)::Search
+	# inizializzo la struttura dati che terrà traccia dello stato dilla visita
+	search = Search(G, root)
+	add_step!(search, [root], root)
+
+	# inizializzo una coda Q
+	Q = Int[]
+	# inserisco la radice in coda
+	pushfirst!(Q, root)
+	# contrassegno tutti i nodi come non visitati
+	isExplored = Dict(vertices(G) .=> false)
+	# contrassegno tutti la radice come visitata
+	isExplored[root] = true
+
 	
-	# Definisco il numero di elementi
-	n = length(items)
-end
+	while !isempty(Q)
+		# rimuovo il primo elemento dalla cada (dequeue)
+		u = pop!(Q)
+		border = []
 
-# ╔═╡ c6d0b3ba-f304-4946-8e4a-95470e2ed8ab
-md"""
-Una **soluzione ammissibile** al problema potrebbe essere la seguente:
-"""
-
-# ╔═╡ c110a361-cd9b-4a82-9d2e-3a173b8bcc43
-PlutoUI.LocalResource("./img/example_solution.png")
-
-# ╔═╡ 1cc1cf11-f8f2-4b8d-b3a6-eb12539f0349
-md"""
-Di valore:
-"""
-
-# ╔═╡ 4afa7572-35df-4a68-9402-fd04a9da512e
-begin
-	local feasible_solution = [items[1], items[2], items[4]]
-	print_solution_value(feasible_solution)
-end
-
-# ╔═╡ b5eab760-9905-4cd4-b017-ff492283b620
-md"""
-Come vedremo, questa è una soluzione al problema, ma non è la soluzione **ottima**.
-Un approccio di risoluzione potrebbe essere sicuramente quello di enumerare tutti i possibili sott'insiemi degli oggetti, selezionare solamente quelli ammissibili (ovvero, i sott'insiemi $E_j$ con somma dei pesi minore di $W$, formalmente $\sum_{i=1}^{E_j}w_i≤W$) e trovare il sott'insieme di valore massimo tra questi: $argmax_j\sum_{i=1}^{E_j}v_i$.\
-Siccome sappiamo che i possibili sott'insiemi di un insieme di $n$ elementi sono $2^n$, la complessità di questo algoritmo sarà dell'ordine di $\Omega(2^n)$.\
-Come vedremo, cercheremo di fare meglio.
-"""
-
-# ╔═╡ 30955cbe-c4bf-4a8b-be50-2136bfadb4ba
-md"""
-## Una falsa partenza
-Un primo tentativo di risoluzione che può venire in mente per trovare una soluzione ottima effecientemente, potrebbe essere quello di utilizzare un approccio **greedy**: ordinare gli elementi in base al loro rapporto $\frac{v_i}{w_i}$ (*valore/peso*) decrescente ed inserire gli elementi finché è possibile.\
-Implementiamo quest'algoritmo.
-"""
-
-# ╔═╡ 58cd0d11-ed34-47f8-99b3-dd67e72b6a9f
-function greedy_knapsack(items::Vector{Item}, W::Int64)::Vector{Item}
-	# Ordino gli elementi in base al rapporto v/w decrescente
-	sorted_items = sort(items, by = x -> x.v/x.w, rev=true)
-	solution = []
-	for item in sorted_items
-		# Se c'è spazio per il prossimo elemento, lo si aggiunge alla soluzione
-		if item.w ≤ W
-			push!(solution,item)
-			W -= item.w
-		end
-	end
-	solution
-end
-
-# ╔═╡ 89f06296-db5c-4ff5-91bb-7f768d8e44f6
-md"""
-Facciamolo girare ora sulla nostra istanza del problema, l'insieme di items restituiti sarà quindi:
-"""
-
-# ╔═╡ f4f4a323-7925-4142-8cc1-9e7b6a835304
-feasible_solution = greedy_knapsack(items, W)
-
-# ╔═╡ 82599cd2-e5bd-4436-b2c3-0336c7902544
-md"""
-Gli step eseguiti dall'algoritmo sono i seguenti:\
-$step =$ $(@bind step Slider(1:length(feasible_solution), show_value = true, default=1))
-"""
-
-# ╔═╡ 6cb7546e-40ef-4764-a6cf-74d3ac583fa7
-feasible_solution[1:step]
-
-# ╔═╡ 1dfb5dfe-2c2b-4363-afa0-390ea0e5261e
-md"""
-La soluzione trovata dall'algoritmo greedy ha quindi un valore di:
-"""
-
-# ╔═╡ 199f0402-d69a-457c-9dcf-7021e2dea749
-print_solution_value(feasible_solution)
-
-# ╔═╡ 2ee00755-6ea2-4f2e-ac5b-78da2ecd9a86
-md"""
-Come vedremo, la soluzione restituita dall'algoritmo greedy non è ottima.
-"""
-
-# ╔═╡ 9512ffed-89e0-46b4-ada6-2a5334382100
-md"""
-## L'approccio di programmazione dinamica
-"""
-
-# ╔═╡ d64c9e42-c17f-4fad-bd19-86b8367224ac
-md"""
-Utilizziamo ora l'approccio di programmazione dinamica e dividiamo il nostro problema in sottoproblemi sovrapposti. Definiamo l'**ottimo** di un sott'insieme formato dai primi $i$ elementi:\
-**Def.** $OPT(i,w) =$ massimo profitto del sott'insieme di elementi $1,...,i$ con il limite di peso $w$\
-Distinguiamo due casi:
-- **Caso 1:** **_OPT_** non seleziona l'elemento $i$.
-  - **_OPT_** seleziona l'ottimo di $\{1,2,...,i-1\}$ usando il limite di peso $w$
-- **Caso 2:** **_OPT_** seleziona l'elemento $i$.
-  - il nuovo limite di peso $= w - w_i$
-  - **_OPT_** seleziona l'ottimo di $\{1,2,...,i-1\}$ usando il **nuovo limite di peso**
-"""
-
-# ╔═╡ 3ebbe694-85dc-4754-8ea4-e845be6ff77e
-md"""
-Definiamo quindi una matrice di $n+1$ righe e $W+1$ colonne che rappresenta i sottoproblemi sovrapposti come li abbiamo definiti. Una proprietà importante del problema che va sottolineata è che per calcolare la riga $i$ abbiamo bisogno solamente delle righe $j<i$
-"""
-
-# ╔═╡ a53e5a69-59df-4c4e-b858-ce750d869cf4
-OPT = fill([], n + 1, W + 1)
-
-# ╔═╡ 9bdddbd3-b9b0-4c09-81a4-b63b98d19195
-"""
-Ritorna l'insieme ottimo (di valore massimo) tra i primi _i_ elementi con il limite di peso _w_
-"""
-function opt(i, w)::Vector{Item}
-	if i == 1 || w == 1 # Caso base
-		[]
-	elseif items[i-1].w > w - 1 # Se il peso dell'elemento è maggiore del limite
-		OPT[i-1,w] # Ritorno l'ottimo calcolato senza tenere conto dell'elemento i
-	else # In questo caso l'elemento i ha un peso minore del limite
-		# L'ottimo è il massimo tra l'ottimo senza l'elemento corrente e quello con
-		argmax(
-			items -> isempty(items) ? 0 : sum(item.v for item in items),
-			(OPT[i-1,w], vcat(OPT[i-1, w - items[i-1].w], items[i-1]))
-		)
-	end
-end
-
-# ╔═╡ bab55d67-d673-4867-8171-fd78c4b8b6dc
-md"""
-Implementiamo ora l'algoritmo di programmazione dinamica **Knapsack**
-"""
-
-# ╔═╡ 0a01fc94-e91c-4413-89e5-956dc3df4769
-"""
-Funzione che risolve il problema **knapsack** utilizzando la tecnica della programmazione dinamica.
-
-Ritorna la soluzione ottima
-"""
-function knapsack()::Vector{Item}
-	for i=2:n+1
-		for w=2:W+1
-			OPT[i,w] = opt(i, w)
-		end
-	end
-	OPT[end,end]
-end
-
-# ╔═╡ 8721e42f-327a-4704-a1e4-20ee7feeeffe
-md"""
-Step dell'algoritmo: come viene riempita la matrice OPT\
-i= $(@bind i Scrubbable(1:n+1, default = 1))
-w= $(@bind w Scrubbable(1:W+1, default = 1))
-"""
-
-# ╔═╡ 179de169-a3a4-4d92-a568-c0f7eaf0738b
-OPT[i,w]
-
-# ╔═╡ 5806879e-2287-43a5-8b80-2c1567ef9da0
-md"""
-Eseguiamo l'algoritmo sulla nostra istanza del problema:
-"""
-
-# ╔═╡ 3b80cc62-25b5-4c65-89d0-cf27ea2bb675
-optimal_solution = knapsack()
-
-# ╔═╡ c705edf4-1fcd-492d-bf5a-f97ccc759aa3
-md"""
-La soluzione restituita dall'algoritmo è la soluzione ottima, di costo:
-"""
-
-# ╔═╡ 674caa02-388e-4c91-9bf6-c74e85e2e271
-print_solution_value(optimal_solution)
-
-# ╔═╡ 60db0532-53a4-4c21-9cfb-e2450a3e3075
-md"""
-## Confronto tra i due algoritmi
-Ora che abbiamo i due algoritmi a disposizione può essere utile confrontarli per capire quale dei due sia più conveniente utilizzare.\
-Abbiamo un algoritmo che trova una soluzione ottima, perché non dovremmo usarlo?\
-La motivazione principale è che, mentre l'algoritmo greedy si occupa principalmente di ordinare gli elementi (che sappiamo avere un costo $\mathcal{O}(n \cdot logn)$) in base al loro rapporto $\frac{valore}{peso}$, l'algoritmo con programmazione dinamica alloca, scrive e legge una matrice di dimensione $(n+1)\cdot (W+1)$, la sua complessità è quindi un $\mathcal{O}(n\cdot W)$.\
-Il suo tempo di esecuzione non è una funzione polinomiale nella grandezza dell'istanza; piuttosto, è una funzione polinomiale in $n$ e $W$. Purtroppo però $W$ è esponenzialmente più grande della sua rappresentazione binaria. Algoritmi del genere sono detti **algoritmi pseudo-polinomiali**. Gli algoritmi pseudo-polinomiali possono essere ragionevolmente efficienti quando i numeri $\{w_i\}$ coinvolti nell'input sono ragionevolmente piccoli; tuttavia, diventano meno pratici man mano che questi numeri diventano grandi.\
-Vogliamo quindi confrontare i due algoritmi in base a vari parametri come _tempo di esecuzione_, _fattore d'approssimazione_, ecc...\
-Prima di far ciò, ridefiniamo le nostre funzioni in modo che prendano in input dei parametri che facciamo variare randomicamente.
-"""
-
-# ╔═╡ 1484793a-8a7d-44d2-80be-919faadcb7ad
-begin
-	"""
-	Ritorna l'insieme ottimo (di valore massimo) tra i primi _i_ elementi con il limite di peso _w_
-	# Arguments
-	- i: ith element
-	- w: remaining capacity
-	- items: vettore di Item
-	- W: capacità della bisaccia
-	- OPT: matrix of optimal value of the subproblems
-	"""
-	function local_opt(i, w, items::Vector{Item}, W::Int64, OPT::Matrix{Vector{Any}})::Vector{Item}
-		if i == 1 || w == 1 # Caso base
-			[]
-		elseif items[i-1].w > w - 1 # Se il peso dell'elemento è maggiore del limite
-			OPT[i-1,w] # Ritorno l'ottimo calcolato senza tenere conto dell'elemento i
-		else # In questo caso l'elemento i ha un peso minore del limite
-			# L'ottimo è il massimo tra l'ottimo senza l'elemento corrente e quello con
-			argmax(
-				items -> isempty(items) ? 0 : sum(item.v for item in items),
-				(OPT[i-1,w], vcat(OPT[i-1, w - items[i-1].w], items[i-1]))
-			)
-		end
-	end
-
-	"""
-	Funzione che risolve il problema **knapsack** utilizzando la tecnica della programmazione dinamica.
-	
-	Ritorna la soluzione ottima.
-	# Arguments
-	- items: vettore di Item
-	- W: capacità della bisaccia
-	"""
-	function local_knapsack(items::Vector{Item}, W::Int64)::Vector{Item}
-		n = length(items)
-		OPT = fill([], n+1, W+1)
-		for i=2:n+1
-			for w=2:W+1
-				OPT[i,w] = local_opt(i, w, items, W, OPT)
+		# per ogni vicino v di u, se esso non risulta già visitato, lo inserisco in coda, lo contrassegno come visitato e rendo v figlio di u nell'albero della visita BFS
+		for v ∈ neighbors(G, u)
+			if !isExplored[v]
+				# contrassegno v come visitato
+				isExplored[v] = true
+				# inserisco v in coda
+				pushfirst!(Q, v)
+				
+				push!(border, v)
+				# rendo v figlio di u nell'albero della visita BFS
+				add_edge!(search.search_tree, u, v)
 			end
 		end
-		OPT[end,end]
+		add_step!(search, border, u)
+	end
+	search
+end
+
+# ╔═╡ 9d0fd8e0-85b0-41ac-baaa-fa2bf0c9265d
+"""
+	plot_search
+Funzione che mostra lo stato della visita `search` al tempo `t`.
+"""
+function plot_search(
+	search::Search,
+	t::Int;
+	locs_x=locs_x,
+	locs_y=locs_y,
+	nodelabel=nothing,
+	nodestrokelw=1,
+	nodestrokec=colorant"black",
+	edgestrokec=:default,
+	EDGELABELSIZE=5,
+	arrowlengthfrac=0
+	)
+	
+	g = search.g
+	visit = search.borders
+	@assert 1 ≤ t ≤ length(visit) "time $t invalid"
+
+	visited = search.visit_order[begin:t-1]
+	border = append!([], visit[begin:t]...) |> Set |> collect
+	#unvisited = append!([], visit[t+1:end]...)
+
+	#membership = ones(Int, nv(g))
+	membership = fill(3, nv(g))
+	membership[border] .= 2
+	membership[visited] .= 1
+	#membership[unvisited] .= 3
+
+	if t ≠ 1
+		membership[search.visit_order[t]] = 4
+	end
+	
+	nodecolor = [colorant"green", colorant"red", colorant"lightblue", colorant"purple"]
+	nodefillc = nodecolor[membership]
+
+	weights = []
+	edge_color = edgestrokec
+	if typeof(g) <: SimpleWeightedGraph && edgestrokec == :default
+		weights = edges(g) |> collect .|> weight
+		edge_color=colorant"lightgray"
+	elseif edgestrokec == :default
+		edge_color = colorant"black"
+	end
+	
+	gplot(
+		g, locs_x, locs_y,
+		nodefillc=nodefillc,
+		nodelabel=nodelabel,
+		nodestrokec=nodestrokec,
+		nodestrokelw=nodestrokelw,
+		edgestrokec=edge_color,
+		edgelabel=weights,
+		EDGELABELSIZE=EDGELABELSIZE,
+		arrowlengthfrac=arrowlengthfrac
+	)
+	
+end
+
+# ╔═╡ 67c43de2-9314-4538-9a4c-a04d7af4fe83
+function plot_search_tree(search::Search; x::Vector=[], y::Vector=[])
+	if isempty(x) || isempty(y)
+		return gplot(search.search_tree, nodelabel=1:nv(search.search_tree), nodefillc="white", nodestrokec=colorant"black", nodestrokelw=1, edgestrokec="black")
+	else
+		return gplot(search.search_tree, x, y, nodelabel=1:nv(search.search_tree), nodefillc="white", nodestrokec=colorant"black", nodestrokelw=1, edgestrokec="black")
 	end
 end
 
-# ╔═╡ 5788848a-5678-4915-9ad2-b6aa9b1bbc13
+# ╔═╡ 6f568adb-8348-4fe5-8111-8704305a5782
+DataFrame(
+	(color = [colorant"purple", colorant"red", colorant"green", colorant"lightblue"],
+	state=["current node", "border", "visited","unvisited"]
+	)
+)
+
+# ╔═╡ 580c8d80-b941-4697-8331-448f858374a4
+bfs_search = BFS(g, root)
+
+# ╔═╡ 9ca87661-e5b9-4cd1-beb1-e7eb2a41d5ea
 md"""
-Generiamo quindi degli items randomicamente ed eseguiamo i due algoritmi salvando i **tempi d'esecuzione** ed i **valori riportati** per confrontarli in base a:
-- la velocità d'esecuzione;
-- la precisione del valore della soluzione calcolata.
+ time $(@bind t₁ Slider(1:length(bfs_search.borders), default=1, show_value=true))
 """
 
-# ╔═╡ e18e5ee8-1cfc-4252-b38e-8b73f7a5fa55
-begin	
-	images = [load("./img/items/$i.png") for i=1:4] # Carichiamo le immagini degli items
-	simulations = 100 # Numero di simulazioni da fare
-	greedy_times = [] # Riportiamo i tempi (in microsecondi) delle simulazioni usando l'algoritmo greedy
-	greedy_results = [] # Riportiamo i valori delle simulazioni usando l'algoritmo greedy
-	dyn_prog_times = [] # Riportiamo i tempi (in microsecondi) delle simulazioni usando l'algoritmo di programmazione dinamica
-	dyn_prog_results = [] # Riportiamo i valori delle simulazioni usando l'algoritmo di programmazione dinamica
+# ╔═╡ 30950c0f-fb6e-48ca-b533-906499be505f
+plot_search(bfs_search, t₁, nodelabel=1:nv(g))
+
+# ╔═╡ acc19bba-dc4f-47b8-b920-b3b8bb847aa7
+md"> **Remark:** for unweighted graphs the *BFS* visit always generates an *SPT*"
+
+# ╔═╡ 175b272f-601e-4b67-a8d7-cfaf115b88b2
+md"""
+## DFS - Depth-first search
+In **depth-first-search** (in short **DFS**) one proceeds by visiting the nodes, *from neighbor to neighbor*, until no more unvisited nodes are encountered.
+
+The implementation is **very similar** to that of the BFS visit, with the difference that instead of using a $Q$ queue, a $S$ stack is used.
+"""
+
+# ╔═╡ 02292df4-40c6-44c3-8515-3cb7d18b0283
+md"""
+Thus, the algorithm works as follows:
+- create a stack $S$.
+- mark $s$ as visited and enter it in $S$
+- until the queue is empty:
+   - pop the first element $u$ on top if $S$ ($u$ = pop($S$))
+   - for each neighboring $v$ of $u$:
+      - if $v$ is not marked as visited
+         - mark $v$ as visited
+         - push it in the stack
+         - make $v$ child of $u$ in the $T$ tree
+"""
+
+# ╔═╡ 9c3e4a77-9fa3-4f55-9486-0a1bf05249e3
+md"Since the operations are practically the same as the BFS, then the *time complexity* of a DFS turns out to be $O(|V| + |E|)$."
+
+# ╔═╡ 73077b44-6d0b-4641-a3ef-bf7d00a5dcfe
+function DFS(G::AbstractGraph, root::Int)::Search
+	# inizializzo la struttura dati che terrà traccia dello stato dilla visita
+	search = Search(G, root)
+	add_step!(search, [root], root)
+
 	
-	for i in 1:simulations
-		n = rand(1:10) # Numero di items
-		local items = [Item(images[rand(1:length(images))], rand(1:100), rand(1:100)) for _ in 1:n] # Generiamo n items con valori casuali
-		local W = rand(1:100) # Generiamo un limite casuale per la bisaccia
-		# Salviamo il tempo di esecuzione dell'algoritmo greedy
-		append!(greedy_times, (@elapsed greedy_knapsack(items, W)) * exp10(6)) 
-		# Salviamo il tempo di esecuzione dell'algoritmo di programmazione dinamica
-		append!(dyn_prog_times, (@elapsed local_knapsack(items, W)) * exp10(6)) 
-		# Salviamo i valori riportati dall'algoritmo greedy
-		append!(greedy_results, solution_value(greedy_knapsack(items, W)))
-		# Salviamo i valori riportati dall'algoritmo di programmazione dinamica
-		append!(dyn_prog_results, solution_value(local_knapsack(items, W)))
+	# inizializzo una pila S
+	S = Int[]
+	# inserisco la radice in coda
+	push!(S, root)
+	# contrassegno tutti i nodi come non visitati
+	isExplored = Dict(vertices(G) .=> false)
+	isExplored[root] = true
+	
+	while !isempty(S)
+		# rimuovo l'elemento in cima alla pila S
+		u = pop!(S)
+		border = []
+
+		# per ogni vicino v di u, se esso non risulta già visitato, lo inserisco in cima alla pila, lo marco come visitato e lo rendo figlio di u nell'albero della visita DFS
+		for v ∈ neighbors(G, u)
+			if !isExplored[v]
+				isExplored[v] = true
+				push!(S, v)
+				push!(border, v)
+				add_edge!(search.search_tree, u, v)
+			end
+		end
+		add_step!(search, border, u)
 	end
-	
-	greedy_times, dyn_prog_times, greedy_results, dyn_prog_results
+	search
 end
 
-# ╔═╡ b51bdd59-e3da-44db-98df-761023e3c7ff
+# ╔═╡ d74053b1-b5d8-4eed-8832-b722b35e1926
+dfs_search = DFS(g, root)
+
+# ╔═╡ 434091e0-3db7-4cd6-ac13-6f6f5a803ac1
 md"""
-### Confronto temporale
-Confrontiamo i due algoritmi in base al tempo d'esecuzione: per farlo, abbiamo usato la macro `@elapsed`. Stampiamo i risultati in un grafico:
+ time $(@bind t₂ Slider(1:length(dfs_search.borders), default=1, show_value=true))
 """
 
-# ╔═╡ 3a793383-7c32-4a53-83de-5255666faaca
-scatter(1:simulations, [greedy_times, dyn_prog_times], title = "Time compare", xlabel= "i° tentativo", ylabel = L"Tempo ($\mu s$)", label = ["Greedy Knapsack" "DynProg Knapsack"]) # Stampiamo il plot
+# ╔═╡ 86f19fb9-125a-443d-aa8c-fcee8b3ba951
+plot_search(dfs_search, t₂, nodelabel=1:nv(g))
 
-# ╔═╡ 729c1c65-13ed-450b-9cb2-cc4510066ca9
+# ╔═╡ cfb9c99a-2ca2-4b3e-96d7-e203c92baf2b
+md"> **Remark:** the paths in the *DFS tree* are not necessarily always minimal."
+
+# ╔═╡ 8ac046aa-f817-499c-8688-cc734b472c78
 md"""
-Come possiamo vedere dal grafico, i tempi d'esecuzione dell'algoritmo greedy sono sensibilmente più brevi, in particolare: in media sono più brevi di un fattore:
+## Shortest path on wieghted graphs - Dijkstra's algorithm
+A more sophisticated algorithm than the previous ones is **Dijkstra's algorithm**.
+
+This algorithm allows to calculate the *shortest-path-tree* rooted in a source $s$ even for **weighted graphs** $G(V, E, w: E \to \mathbb{R}^+)$, provided that the weights are all **non-negative**!
+
+The basic idea is very *simple and elegant*.
+We maintain a set $S$ for which the distance $d(u) := d_G(s,v)$ from the source $s$ is known.
+
+*At each time* we insert the unvisited node $v$ which **minimizes** the distance from the set of nodes visited, that is
+
+$$v = \arg \min_{v \in V \setminus S} \{ d_G(S,v)\}$$
+
+where
+
+$$d_G(S,v) = \min \{ d(u,v) : u \in S \} \;\; \forall S \subset V$$
 """
 
-# ╔═╡ de2b8e88-7fc7-4458-b6e5-f9232c762604
-mean(dyn_prog_times)/mean(greedy_times)
-
-# ╔═╡ dd24d626-109d-47ca-b944-2490589b01ba
+# ╔═╡ eb87622b-87e1-4366-95d1-d29fb4540224
 md"""
-Mentre nel caso migliore, il risparmio temporale è di un fattore:
+The algorithm works as follows:
+- Maintain a set $S$ of **explored nodes**, for which we have determined the shortest path distance $d(u)$ from $s$ to $u$.
+- Initialize $S = \{ s \}$ and $d(s) = 0$.
+- Repeatedly choose unexplored node $v$ which minimizes
+$$\pi^*(v) = \min_{e = (u,v) : u \in S} d(u) + w(e)$$
+- set $d(v) = \pi^*(v)$ and add $v$ to $S$.
+- if needed, store the father of $v$ (i.e. $u$).
 """
 
-# ╔═╡ 649f1a93-a4f4-4f8f-911a-fc284e1d234b
-maximum(dyn_prog_times./greedy_times)
-
-# ╔═╡ 2ad6a252-1efe-41d6-accc-cc78e6605260
+# ╔═╡ b47c9ec0-8d85-4b6b-87c9-54a06ebc22c3
 md"""
-### Confronto tra valori
-Vediamo ora quante volte e di quanto "sbaglia" l'algoritmo greedy rispetto a quello di programmazione dinamica.\
-Mettiamo a confronto i risultati dati dall'algoritmo di programmazione dinamica, che sappiamo essere ottimali, rispetto a quelli dati dall'algoritmo greedy, e derivare da queste simulazioni un fattore d'approssimazione per quest'ultimo algoritmo:
+To efficiently keep track of node distances, we'll make use of a famous data structure: the **priority queue**.
+
+Let $PQ$ be our priority queue, where the **keys** are the nodes and the values are the estimates of the **distances** of $s$.
+
+Initially every node outside $S$ will have an estimate of $d(v) = \infty$, so $PQ\left[ v \right] = \infty$, instead $PQ\left[ s \right] = 0$.
+
+Whenever the node $v$ with the **minimum key** is removed, we know that its value $PQ\left[ v \right]$ will minimize $\pi^*(v)$
+
+$$\pi^*(v) = \min_{e = (u,v) : u \in S} d(u) + w(e)$$
+
+and so it can be inserted into $S$.
+
+After that, for every other neighboring $x$ of $v$, we can update the key (or estimate of $d(x)$) of $x$ as follows:
+- if $d(v) + w((v, x)) \leq PQ \left[x \right]$ then set $PQ \left[x \right] = d(v) + w((v, x ))$.
+- otherwise leave $PQ \left[x \right]$ unchanged.
+
+When $PQ$ is empty, we're done!
 """
 
-# ╔═╡ 3f3b7bf7-f4e3-4a52-bbba-0cb83dacc9d0
-scatter(1:simulations, [greedy_results, dyn_prog_results], title = "Value compare", xlabel= "i° tentativo", ylabel = "Valore della soluzione", label = ["Greedy Knapsack" "DynProg Knapsack"]) # Stampiamo il plot
-
-# ╔═╡ 0c58c643-fcec-43c6-9889-3dc6ba864868
+# ╔═╡ 254643d0-5e86-4722-96e5-5bc7940d8ac8
 md"""
-Come già sapevamo, l'algoritmo greedy non sempre raggiunge il valore ottimo, anche se mediamente la perdita, almeno per questa distribuzione di numeri aleatori con cui abbiamo generato le variabili, non è male... Da queste simulazioni vediamo che:
+Calculating the time complexity is more tricky than before...
 
-Il numero di volte che l'algoritmo greedy sbaglia è:
+If the priority queue is implemented with **binomial heap**, any necessary operation (**inserting an element**, **removing the minimum** and **updating the key**) are performed in $O(\log{n})$ time.
+
+Therefore:
+- each node is inserted and removed (at most, if $G$ is connected) once, so $O(|V|)$ insertion operations and $O(|V|)$ minimum remove operations will be performed.
+- at most the key of each node $v$ can be updated for each of its neighbors, so $O (|E|)$ key update operations will be performed.
+
+In conclusion, the complexity turns out to be $O\left((|V| + |E|)\log{|V|}\right)$.
+If we assume that $G$ is connected then $|E| \in \Omega(|V|)$, so we will have $O(|E| \log{|V|})$.
 """
 
-# ╔═╡ cecbac96-40fb-4bde-9292-589ea62ca5bb
-count(dyn_prog_results.≠greedy_results)//simulations
+# ╔═╡ 5705e51c-1752-4acd-8a11-6e7afaed0867
+begin 
+	wg = SimpleWeightedGraph(g)
+	ε = 0.1
+	for e ∈ edges(g)
+		wg.weights[e.src, e.dst] = wg.weights[e.dst, e.src] = round(rand()*10+ε, digits=1)
+	end
+	wg
+end
 
-# ╔═╡ f99a525f-766a-49fc-8a77-27c611089fb1
+# ╔═╡ 8d042281-61b2-4cf2-8f0f-4f42f0fb4050
+begin
+	function Dijkstra(G::AbstractSimpleWeightedGraph, root::Int)
+		search = Search(G, root)
+		
+		dist = fill(Inf, nv(G))
+		prev = fill(-1, nv(G))
+		PQ = PriorityQueue(1:nv(G) .=> Inf)
+	
+		PQ[root] = 0
+		dist[root] = 0
+	
+		while !isempty(PQ)
+			u = dequeue!(PQ)
+			border = [u]
+			for v ∈ neighbors(G, u)
+				push!(border, v)
+				if v ∈ keys(PQ) && dist[u] + G.weights[u,v] ≤ dist[v]
+					dist[v] = dist[u] + G.weights[u,v]
+					PQ[v] = dist[u] + G.weights[u,v]
+					prev[v] = u
+				end
+				add_step!(search, border, u)
+			end
+		end
+	
+		return (dist, prev, search)
+	end
+
+	Dijkstra(G::Graph, root::Int) = Dijkstra(SimpleWeightedGraph(G), root)
+	Dijkstra(G::DiGraph, root::Int) = Dijkstra(SimpleWeightedDiGraph(G), root)
+end
+
+# ╔═╡ 826b1e26-36b8-4ba9-a535-b49600536526
+dist, prev, dijkstra_search = Dijkstra(wg, 1)
+
+# ╔═╡ b52b3a7b-a953-4d9f-9b00-6fd28714d20c
 md"""
-In media, il fattore d'approssimazione è:
+ time $(@bind t₃ Slider(1:length(dijkstra_search.borders), default=1, show_value=true))
 """
 
-# ╔═╡ 109ac79b-c387-46d3-943c-57ce0c2e7b34
-mean(greedy_results)/mean(dyn_prog_results)
+# ╔═╡ 79d11ee0-24f7-44ac-aae8-655255e76dcf
+plot_search(dijkstra_search, t₃, nodelabel=1:nv(g))
 
-# ╔═╡ df2780f2-23b9-4612-a435-3c0913b701b2
+# ╔═╡ 86210bf9-b85d-419a-ac4f-3cc8a7babc3f
+function plot_search_tree(prev::Vector)
+	g = DiGraph(length(prev))
+	for v=1:nv(g)
+		u = prev[v] 
+		if u ≠ -1
+			add_edge!(g, u, v)
+		end
+	end
+	
+	gplot(
+		g,
+		nodelabel=1:nv(g),
+		nodefillc="white",
+		nodestrokec=colorant"black",
+		nodestrokelw=1,
+		EDGELINEWIDTH=0.3,
+		edgestrokec="black",
+		#edgelabel= g |> edges |> collect .|> weight,
+		#edgelabelc="red",
+		#edgelabeldistx=0, edgelabeldisty=0,
+		#EDGELABELSIZE=5,
+		#layout=(args...)->spring_layout(args...; C=2),
+	)
+end
+
+# ╔═╡ 2521c391-dd5b-4aae-9a66-d1ea09639560
+plot_search_tree(bfs_search)
+
+# ╔═╡ 7451bf70-cee7-4f43-8d1b-3e83b5e1db62
+plot_search_tree(dfs_search)
+
+# ╔═╡ 88616ad4-6168-4b93-87d9-7548f280c022
+plot_search_tree(prev)
+
+# ╔═╡ 712b8861-d94f-4df6-8117-32e1c8fe1db3
+md"**The distances table**"
+
+# ╔═╡ 2ef9ce68-5546-4b32-93c5-e4c07ade8563
+DataFrame("node"=>1:nv(wg), "dist"=>dist)
+# DataFrame((1:nv(wg) .|> string) .=> dist)
+
+# ╔═╡ 1d6e5312-9749-40d0-941f-d1b19f839141
 md"""
-Nel caso peggiore, il fattore d'approssimazione è:
+> **Remark:** it is possible to apply the Dijkstra's algorithm also on *unweighted graphs*. Just observe that an unweighted graph can be represented by a weighted graph where all nodes have the **same weight** (e.g. $w (e) = 1$ for all $e \in E$).
 """
 
-# ╔═╡ 510426c3-c75f-4333-9d39-1ae784392ebc
-minimum((x -> isnan(x) ? Inf : x).(greedy_results ./ dyn_prog_results))
-
-# ╔═╡ d87fb254-ed5d-4426-93d9-138f3908a2ae
+# ╔═╡ fcbaa7b5-35b4-4e4a-8a48-3948f05c0cce
 md"""
-I risultati delle simulazioni sono d'accordo con la teoria che dice che l'algoritmo greedy è $\frac{1}{2}$-approssimante 
+## Naive maze generation
+Before proceeding we need to define a way to generate a random maze.
+
+A trivial approach might be to generate a **grid** and perform an DFS on it.
+The resulting DFS tree can be a potential maze candidate.
+"""
+
+# ╔═╡ 941094ee-abf7-4e6c-8f87-d268ee634fd7
+md"""
+number of rows = $(@bind rows Slider(1:20, show_value=true, default=10))\
+number of columns = $(@bind cols Slider(1:20, show_value=true, default=10))
+"""
+
+# ╔═╡ bc1004e7-3bb2-4f31-8d30-4f65781d9c26
+begin
+	n = rows*cols
+	x = ([1:cols...] .- (cols/2)) ./ (cols/2)
+	y = ([1:rows...] .- (rows/2)) ./ (rows/2)
+
+	coords = Iterators.product(x, y) |> collect
+	x_coord = push!(Float64[], first.(coords)...)
+	y_coord = push!(Float64[], last.(coords)...)
+	maze_gird = Graphs.grid((cols, rows))
+end
+
+# ╔═╡ d8051e9e-f762-49ef-8972-bae3b1936b22
+gplot(maze_gird, x_coord, y_coord)
+
+# ╔═╡ 571246a3-73cb-47c8-90e3-a565d4510441
+start, finish = 1, n
+
+# ╔═╡ c3c933d2-80c3-4d55-94f4-f6c1305545fe
+naive_maze = DFS(maze_gird, start)
+
+# ╔═╡ c91ae1ca-6c1a-42c7-aab1-1dea4757d66a
+gplot(naive_maze.search_tree, x_coord, y_coord, nodefillc="white", nodestrokec=colorant"black", nodestrokelw=1, edgestrokec="black", arrowlengthfrac=0)
+
+# ╔═╡ a2b85e57-a858-47be-ad6e-db3566045626
+md"""
+We observe that the generated naive maze doesn't appear to be very random 🙁
+
+This is because the neighbors of each explored $u$ node are visited "in order".
+So one idea is to visit the nodes randomly.
+"""
+
+# ╔═╡ 52f8f449-4775-4b75-b437-d0125ae71a72
+begin
+	rand_maze = random_DFS(maze_gird, start)
+	gplot(rand_maze.search_tree, x_coord, y_coord, nodefillc="white", nodestrokec=colorant"black", nodestrokelw=1, edgestrokec="black", arrowlengthfrac=0)
+end
+
+# ╔═╡ 6d3262b9-35cf-4dac-b58a-2443c52525f4
+md"""
+We are almost there...
+
+We observe that the resulting maze is still a tree, so it has **only one** path from the entrance to the exit.
+
+If we are unlucky enough it could be a maze consisting of a **single corridor**, from the entrance to the exit ...
+
+Therefore a good idea is to insert a few random edges.
+"""
+
+# ╔═╡ 308a4144-6792-409f-828c-3e9679641c69
+begin
+	# add some random edges
+	for _=1:(n/2.5)
+		u = rand(1:n)
+		v = rand(neighbors(maze_gird, u))
+		add_edge!(rand_maze.search_tree, u, v)
+	end
+	maze = Graph(rand_maze.search_tree)
+end
+
+# ╔═╡ 573ce43b-2f49-4d44-9583-6fdd26edc630
+gplot(maze, x_coord, y_coord, nodefillc="white", nodestrokec=colorant"black", nodestrokelw=1, edgestrokec="black", arrowlengthfrac=0)
+
+# ╔═╡ 4697df2d-5c28-4a9e-b79c-3b3fcb054257
+md"Et voilà, a **random maze**! 🥳"
+
+# ╔═╡ 79f5e786-6d1c-4b81-87ac-0ecec4a64b9e
+md"""
+## Solving the maze
+Below are the solutions of the labyrinth with three algorithms introduced.
+"""
+
+# ╔═╡ d280654a-de48-4051-a120-161de6823e2a
+begin
+	function plot_solution(g, solution)
+		p₁ = gplot(
+			g, x_coord, y_coord,
+			nodefillc="white",
+			nodestrokec=colorant"black",
+			nodestrokelw=1,
+			edgestrokec="black",
+			arrowlengthfrac=0
+		)
+		
+		p₂ = gplot(
+			Graph(solution), x_coord, y_coord,
+			NODESIZE=0,
+			edgestrokec="red",
+			EDGELINEWIDTH=10/√n
+		)
+		
+		Compose.compose(p₁, p₂)
+	end
+end
+
+# ╔═╡ bae766f2-4fda-46f0-8156-5bc3bae4515f
+md"""
+### With BFS
+"""
+
+# ╔═╡ 9c1c2152-a8f7-44f0-a6cf-7144a9338557
+begin
+	bfs_solution = BFS(maze, start)
+	bfs_solution_tree = bfs_solution.search_tree
+
+	bfs_path = let
+		current = first(bfs_solution_tree.badjlist[finish])
+		path = [Edge(finish, current)]
+		while current ≠ start
+			previor = first(bfs_solution_tree.badjlist[current])
+			push!(path, Edge(current, previor))
+			current = previor
+		end
+		path
+	end
+end
+
+# ╔═╡ b9ba3ae1-c8ee-4222-9164-797e3586069c
+begin
+	last_index₁ = findfirst(x->x==finish, bfs_solution.visit_order)
+
+	md"""
+	 time $(@bind t₄ Slider(1:last_index₁+1, show_value=true, default=true))
+	"""
+end
+
+# ╔═╡ 4839aa4d-a51d-4c66-aec1-a2456ab824de
+t₄ ≤ last_index₁ ? plot_search(bfs_solution, t₄, locs_x=x_coord, locs_y=y_coord) : plot_solution(rand_maze.search_tree, bfs_path)
+
+# ╔═╡ 4ff62f2b-fb7a-4b44-9265-ba104e2aedb3
+md"""
+### With DFS
+"""
+
+# ╔═╡ c96e988f-ea8b-466f-8ff3-620443e26f30
+begin
+	dfs_solution = DFS(maze, start)
+	dfs_solution_tree = dfs_solution.search_tree
+
+	dfs_path = let
+		current = first(dfs_solution_tree.badjlist[finish])
+		path = [Edge(finish, current)]
+		while current ≠ start
+			previor = first(dfs_solution_tree.badjlist[current])
+			push!(path, Edge(current, previor))
+			current = previor
+		end
+		path
+	end
+end
+
+# ╔═╡ 33510dcf-1c91-4651-81dd-867b201418de
+begin
+	last_index₂ = findfirst(x->x==finish, dfs_solution.visit_order)
+
+	md"""
+	 time $(@bind t₅ Slider(1:last_index₂+1, show_value=true, default=true))
+	"""
+end
+
+# ╔═╡ 49389be0-05ac-4c96-a9a6-266a4cca0eb8
+t₅ ≤ last_index₂ ? plot_search(dfs_solution, t₅, locs_x=x_coord, locs_y=y_coord) : plot_solution(rand_maze.search_tree, dfs_path)
+
+# ╔═╡ 9697b21e-7ca6-498f-bb24-6a7e073be40c
+md"""
+### With Dijkstra
+"""
+
+# ╔═╡ 61dae2c4-7ed8-4fca-ba1d-aaf63b5f37ea
+begin
+	ĝ = SimpleWeightedGraph(maze)
+	_, dijk_solution, dijk_search = Dijkstra(ĝ, start)
+	
+	dijk_path = let
+		current = dijk_solution[finish]
+		path = [Edge(finish, current)]
+		while current ≠ start
+			push!(path, Edge(current, dijk_solution[current]))
+			current = dijk_solution[current]
+		end
+		path
+	end
+end
+
+# ╔═╡ 594cff31-f1ee-44d9-bed0-feb6c0731913
+begin
+	last_index₃ = findfirst(x->x==finish, dijk_search.visit_order)
+	if last_index₃ == nothing
+		last_index₃ = length(dijk_search.visit_order)
+	end
+
+	md"""
+	 time $(@bind t₆ Slider(1:last_index₃+1, show_value=true, default=true))
+	"""
+end
+
+# ╔═╡ 4759f0b7-af2a-4a29-a38b-0279475351d1
+t₆ ≤ last_index₃ ? plot_search(dijk_search, t₆, locs_x=x_coord, locs_y=y_coord, EDGELABELSIZE=0, edgestrokec=colorant"black") : plot_solution(rand_maze.search_tree, dijk_path)
+
+# ╔═╡ 54bbfa45-3425-4ee3-b9a7-4ec5f38a9467
+md"""
+### Comparisons
+Below are the lengths of the preformed paths of the three algorithms.
+We observe that the BFS and Dijkstra's algorithms always generate an **optimal solution**, while DFS could generate a **worse solution** (if not in the example, try to rerun the DFS visit or generate a new labyrinth).
+"""
+
+# ╔═╡ 4cb7b542-a7bd-4450-a353-e014f41e44f2
+DataFrame(
+	Algo = [BFS, DFS, Dijkstra],
+	Solution_legnth = length.([bfs_path, dfs_path, dijk_path])
+)
+
+# ╔═╡ e34bb748-4f14-4d95-a3dc-7f47e94cde2a
+md"""
+In any case, the most important thing is Arianna is able to get out of the labyrinth to reach her beloved Theseus (not necessarily with the shortest path).
+
+Therefore we also like the DFS visit. 🤓
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
-LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
+Compose = "a81c6b42-2e10-5240-aca2-a61377ecd94b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+GraphPlot = "a2cc645c-3eea-5389-862e-a155d0052231"
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SimpleWeightedGraphs = "47aef6b3-ad0c-573a-a1e2-d07658019622"
 
 [compat]
-Images = "~0.25.2"
-LaTeXStrings = "~1.3.0"
-Plots = "~1.31.3"
+Colors = "~0.12.8"
+Compose = "~0.9.4"
+DataFrames = "~1.3.4"
+DataStructures = "~0.18.13"
+GraphPlot = "~0.5.2"
+Graphs = "~1.7.1"
+Plots = "~1.31.2"
 PlutoUI = "~0.7.39"
-StatsBase = "~0.33.19"
+SimpleWeightedGraphs = "~1.2.1"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -443,12 +792,6 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.7.2"
 manifest_format = "2.0"
-
-[[deps.AbstractFFTs]]
-deps = ["ChainRulesCore", "LinearAlgebra"]
-git-tree-sha1 = "69f7020bd72f069c219b5e8c236c1fa90d2cb409"
-uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
-version = "1.2.1"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -474,18 +817,6 @@ version = "0.2.0"
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
-[[deps.AxisAlgorithms]]
-deps = ["LinearAlgebra", "Random", "SparseArrays", "WoodburyMatrices"]
-git-tree-sha1 = "66771c8d21c8ff5e3a93379480a2307ac36863f7"
-uuid = "13072b0f-2c55-5437-9ae7-d433b7a33950"
-version = "1.0.1"
-
-[[deps.AxisArrays]]
-deps = ["Dates", "IntervalSets", "IterTools", "RangeArrays"]
-git-tree-sha1 = "1dd4d9f5beebac0c03446918741b1a03dc5e5788"
-uuid = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
-version = "0.4.6"
-
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
@@ -495,28 +826,11 @@ git-tree-sha1 = "19a35467a82e236ff51bc17a3a44b69ef35185a2"
 uuid = "6e34b625-4abd-537c-b88f-471c36dfa7a0"
 version = "1.0.8+0"
 
-[[deps.CEnum]]
-git-tree-sha1 = "eb4cb44a499229b3b8426dcfb5dd85333951ff90"
-uuid = "fa961155-64e5-5f13-b03f-caf6b980ea82"
-version = "0.4.2"
-
 [[deps.Cairo_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "JLLWrappers", "LZO_jll", "Libdl", "Pixman_jll", "Pkg", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
 git-tree-sha1 = "4b859a208b2397a7a623a03449e4636bdb17bcf2"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.16.1+1"
-
-[[deps.Calculus]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "f641eb0a4f00c343bbc32346e1217b86f3ce9dad"
-uuid = "49dc2e85-a5d0-5ad3-a950-438e2897f1b9"
-version = "0.5.1"
-
-[[deps.CatIndices]]
-deps = ["CustomUnitRanges", "OffsetArrays"]
-git-tree-sha1 = "a0f80a09780eed9b1d106a1bf62041c2efc995bc"
-uuid = "aafaddc9-749c-510e-ac4f-586e18779b91"
-version = "0.2.2"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
@@ -526,15 +840,9 @@ version = "1.15.2"
 
 [[deps.ChangesOfVariables]]
 deps = ["ChainRulesCore", "LinearAlgebra", "Test"]
-git-tree-sha1 = "38f7a08f19d8810338d4f5085211c7dfa5d5bdd8"
+git-tree-sha1 = "1e315e3f4b0b7ce40feded39c73049692126cf53"
 uuid = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
-version = "0.1.4"
-
-[[deps.Clustering]]
-deps = ["Distances", "LinearAlgebra", "NearestNeighbors", "Printf", "SparseArrays", "Statistics", "StatsBase"]
-git-tree-sha1 = "75479b7df4167267d75294d14b58244695beb2ac"
-uuid = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
-version = "0.14.2"
+version = "0.1.3"
 
 [[deps.CodecZlib]]
 deps = ["TranscodingStreams", "Zlib_jll"]
@@ -567,40 +875,41 @@ uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.12.8"
 
 [[deps.Compat]]
-deps = ["Dates", "LinearAlgebra", "UUIDs"]
-git-tree-sha1 = "924cdca592bc16f14d2f7006754a621735280b74"
+deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
+git-tree-sha1 = "9be8be1d8a6f44b96482c8af52238ea7987da3e3"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.1.0"
+version = "3.45.0"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 
-[[deps.ComputationalResources]]
-git-tree-sha1 = "52cb3ec90e8a8bea0e62e275ba577ad0f74821f7"
-uuid = "ed09eef8-17a6-5b46-8889-db040fac31e3"
-version = "0.3.2"
+[[deps.Compose]]
+deps = ["Base64", "Colors", "DataStructures", "Dates", "IterTools", "JSON", "LinearAlgebra", "Measures", "Printf", "Random", "Requires", "Statistics", "UUIDs"]
+git-tree-sha1 = "d853e57661ba3a57abcdaa201f4c9917a93487a2"
+uuid = "a81c6b42-2e10-5240-aca2-a61377ecd94b"
+version = "0.9.4"
 
 [[deps.Contour]]
 git-tree-sha1 = "d05d9e7b7aedff4e5b51a029dced05cfb6125781"
 uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
 version = "0.6.2"
 
-[[deps.CoordinateTransformations]]
-deps = ["LinearAlgebra", "StaticArrays"]
-git-tree-sha1 = "681ea870b918e7cff7111da58791d7f718067a19"
-uuid = "150eb455-5306-5404-9cee-2592286d6298"
-version = "0.6.2"
-
-[[deps.CustomUnitRanges]]
-git-tree-sha1 = "1a3f97f907e6dd8983b744d2642651bb162a3f7a"
-uuid = "dc8bdbbb-1ca9-579f-8c36-e416f6a65cce"
-version = "1.0.2"
+[[deps.Crayons]]
+git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
+uuid = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
+version = "4.1.1"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "fb5f5316dd3fd4c5e7c30a24d50643b73e37cd40"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.10.0"
+
+[[deps.DataFrames]]
+deps = ["Compat", "DataAPI", "Future", "InvertedIndices", "IteratorInterfaceExtensions", "LinearAlgebra", "Markdown", "Missings", "PooledArrays", "PrettyTables", "Printf", "REPL", "Reexport", "SortingAlgorithms", "Statistics", "TableTraits", "Tables", "Unicode"]
+git-tree-sha1 = "daa21eb85147f72e41f6352a57fccea377e310a9"
+uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+version = "1.3.4"
 
 [[deps.DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
@@ -621,12 +930,6 @@ uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 deps = ["Mmap"]
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 
-[[deps.Distances]]
-deps = ["LinearAlgebra", "SparseArrays", "Statistics", "StatsAPI"]
-git-tree-sha1 = "3258d0659f812acde79e8a74b11f17ac06d0ca04"
-uuid = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
-version = "0.10.7"
-
 [[deps.Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
@@ -640,12 +943,6 @@ version = "0.8.6"
 [[deps.Downloads]]
 deps = ["ArgTools", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
-
-[[deps.DualNumbers]]
-deps = ["Calculus", "NaNMath", "SpecialFunctions"]
-git-tree-sha1 = "5837a837389fccf076445fce071c8ddaea35a566"
-uuid = "fa6b7ba4-c1ee-5f82-b5fc-ecf0adba8f74"
-version = "0.6.8"
 
 [[deps.EarCut_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -670,30 +967,6 @@ deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers",
 git-tree-sha1 = "ccd479984c7838684b3ac204b716c89955c76623"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
 version = "4.4.2+0"
-
-[[deps.FFTViews]]
-deps = ["CustomUnitRanges", "FFTW"]
-git-tree-sha1 = "cbdf14d1e8c7c8aacbe8b19862e0179fd08321c2"
-uuid = "4f61f5a4-77b1-5117-aa51-3ab5ef4ef0cd"
-version = "0.3.2"
-
-[[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "90630efff0894f8142308e334473eba54c433549"
-uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.5.0"
-
-[[deps.FFTW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "c6033cc3892d0ef5bb9cd29b7f2f0331ea5184ea"
-uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
-version = "3.3.10+0"
-
-[[deps.FileIO]]
-deps = ["Pkg", "Requires", "UUIDs"]
-git-tree-sha1 = "9267e5f50b0e12fdfd5a2455534345c4cf2c7f7a"
-uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
-version = "1.14.0"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
@@ -724,6 +997,10 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "aa31987c2ba8704e23c6c8ba8a4f769d5d7e4f91"
 uuid = "559328eb-81f9-559d-9380-de523a88c83c"
 version = "1.0.10+0"
+
+[[deps.Future]]
+deps = ["Random"]
+uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[deps.GLFW_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libglvnd_jll", "Pkg", "Xorg_libXcursor_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll"]
@@ -761,11 +1038,11 @@ git-tree-sha1 = "a32d672ac2c967f3deb8a81d828afc739c838a06"
 uuid = "7746bdde-850d-59dc-9ae8-88ece973131d"
 version = "2.68.3+2"
 
-[[deps.Graphics]]
-deps = ["Colors", "LinearAlgebra", "NaNMath"]
-git-tree-sha1 = "d61890399bc535850c4bf08e4e0d3a7ad0f21cbd"
-uuid = "a2bd30eb-e257-5431-a919-1863eab51364"
-version = "1.1.2"
+[[deps.GraphPlot]]
+deps = ["ArnoldiMethod", "ColorTypes", "Colors", "Compose", "DelimitedFiles", "Graphs", "LinearAlgebra", "Random", "SparseArrays"]
+git-tree-sha1 = "5cd479730a0cb01f880eff119e9803c13f214cab"
+uuid = "a2cc645c-3eea-5389-862e-a155d0052231"
+version = "0.5.2"
 
 [[deps.Graphite2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -786,9 +1063,9 @@ version = "1.0.2"
 
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "Dates", "IniFile", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
-git-tree-sha1 = "ed47af35905b7cc8f1a522ca684b35a212269bd8"
+git-tree-sha1 = "9fad98d1f1c40c50d4b200176e8f00103d7ec826"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "1.2.0"
+version = "1.1.0"
 
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
@@ -814,113 +1091,6 @@ git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.2.2"
 
-[[deps.ImageAxes]]
-deps = ["AxisArrays", "ImageBase", "ImageCore", "Reexport", "SimpleTraits"]
-git-tree-sha1 = "c54b581a83008dc7f292e205f4c409ab5caa0f04"
-uuid = "2803e5a7-5153-5ecf-9a86-9b4c37f5f5ac"
-version = "0.6.10"
-
-[[deps.ImageBase]]
-deps = ["ImageCore", "Reexport"]
-git-tree-sha1 = "b51bb8cae22c66d0f6357e3bcb6363145ef20835"
-uuid = "c817782e-172a-44cc-b673-b171935fbb9e"
-version = "0.1.5"
-
-[[deps.ImageContrastAdjustment]]
-deps = ["ImageCore", "ImageTransformations", "Parameters"]
-git-tree-sha1 = "0d75cafa80cf22026cea21a8e6cf965295003edc"
-uuid = "f332f351-ec65-5f6a-b3d1-319c6670881a"
-version = "0.3.10"
-
-[[deps.ImageCore]]
-deps = ["AbstractFFTs", "ColorVectorSpace", "Colors", "FixedPointNumbers", "Graphics", "MappedArrays", "MosaicViews", "OffsetArrays", "PaddedViews", "Reexport"]
-git-tree-sha1 = "acf614720ef026d38400b3817614c45882d75500"
-uuid = "a09fc81d-aa75-5fe9-8630-4744c3626534"
-version = "0.9.4"
-
-[[deps.ImageDistances]]
-deps = ["Distances", "ImageCore", "ImageMorphology", "LinearAlgebra", "Statistics"]
-git-tree-sha1 = "b1798a4a6b9aafb530f8f0c4a7b2eb5501e2f2a3"
-uuid = "51556ac3-7006-55f5-8cb3-34580c88182d"
-version = "0.2.16"
-
-[[deps.ImageFiltering]]
-deps = ["CatIndices", "ComputationalResources", "DataStructures", "FFTViews", "FFTW", "ImageBase", "ImageCore", "LinearAlgebra", "OffsetArrays", "Reexport", "SparseArrays", "StaticArrays", "Statistics", "TiledIteration"]
-git-tree-sha1 = "15bd05c1c0d5dbb32a9a3d7e0ad2d50dd6167189"
-uuid = "6a3955dd-da59-5b1f-98d4-e7296123deb5"
-version = "0.7.1"
-
-[[deps.ImageIO]]
-deps = ["FileIO", "IndirectArrays", "JpegTurbo", "LazyModules", "Netpbm", "OpenEXR", "PNGFiles", "QOI", "Sixel", "TiffImages", "UUIDs"]
-git-tree-sha1 = "342f789fd041a55166764c351da1710db97ce0e0"
-uuid = "82e4d734-157c-48bb-816b-45c225c6df19"
-version = "0.6.6"
-
-[[deps.ImageMagick]]
-deps = ["FileIO", "ImageCore", "ImageMagick_jll", "InteractiveUtils"]
-git-tree-sha1 = "ca8d917903e7a1126b6583a097c5cb7a0bedeac1"
-uuid = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
-version = "1.2.2"
-
-[[deps.ImageMagick_jll]]
-deps = ["JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pkg", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "1c0a2295cca535fabaf2029062912591e9b61987"
-uuid = "c73af94c-d91f-53ed-93a7-00f77d67a9d7"
-version = "6.9.10-12+3"
-
-[[deps.ImageMetadata]]
-deps = ["AxisArrays", "ImageAxes", "ImageBase", "ImageCore"]
-git-tree-sha1 = "36cbaebed194b292590cba2593da27b34763804a"
-uuid = "bc367c6b-8a6b-528e-b4bd-a4b897500b49"
-version = "0.9.8"
-
-[[deps.ImageMorphology]]
-deps = ["ImageCore", "LinearAlgebra", "Requires", "TiledIteration"]
-git-tree-sha1 = "e7c68ab3df4a75511ba33fc5d8d9098007b579a8"
-uuid = "787d08f9-d448-5407-9aad-5290dd7ab264"
-version = "0.3.2"
-
-[[deps.ImageQualityIndexes]]
-deps = ["ImageContrastAdjustment", "ImageCore", "ImageDistances", "ImageFiltering", "LazyModules", "OffsetArrays", "Statistics"]
-git-tree-sha1 = "0c703732335a75e683aec7fdfc6d5d1ebd7c596f"
-uuid = "2996bd0c-7a13-11e9-2da2-2f5ce47296a9"
-version = "0.3.3"
-
-[[deps.ImageSegmentation]]
-deps = ["Clustering", "DataStructures", "Distances", "Graphs", "ImageCore", "ImageFiltering", "ImageMorphology", "LinearAlgebra", "MetaGraphs", "RegionTrees", "SimpleWeightedGraphs", "StaticArrays", "Statistics"]
-git-tree-sha1 = "36832067ea220818d105d718527d6ed02385bf22"
-uuid = "80713f31-8817-5129-9cf8-209ff8fb23e1"
-version = "1.7.0"
-
-[[deps.ImageShow]]
-deps = ["Base64", "FileIO", "ImageBase", "ImageCore", "OffsetArrays", "StackViews"]
-git-tree-sha1 = "b563cf9ae75a635592fc73d3eb78b86220e55bd8"
-uuid = "4e3cecfd-b093-5904-9786-8bbb286a6a31"
-version = "0.3.6"
-
-[[deps.ImageTransformations]]
-deps = ["AxisAlgorithms", "ColorVectorSpace", "CoordinateTransformations", "ImageBase", "ImageCore", "Interpolations", "OffsetArrays", "Rotations", "StaticArrays"]
-git-tree-sha1 = "8717482f4a2108c9358e5c3ca903d3a6113badc9"
-uuid = "02fcd773-0e25-5acc-982a-7f6622650795"
-version = "0.9.5"
-
-[[deps.Images]]
-deps = ["Base64", "FileIO", "Graphics", "ImageAxes", "ImageBase", "ImageContrastAdjustment", "ImageCore", "ImageDistances", "ImageFiltering", "ImageIO", "ImageMagick", "ImageMetadata", "ImageMorphology", "ImageQualityIndexes", "ImageSegmentation", "ImageShow", "ImageTransformations", "IndirectArrays", "IntegralArrays", "Random", "Reexport", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "TiledIteration"]
-git-tree-sha1 = "03d1301b7ec885b266c0f816f338368c6c0b81bd"
-uuid = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
-version = "0.25.2"
-
-[[deps.Imath_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "87f7662e03a649cffa2e05bf19c303e168732d3e"
-uuid = "905a6f67-0a94-5f89-b386-d35d92009cd1"
-version = "3.1.2+0"
-
-[[deps.IndirectArrays]]
-git-tree-sha1 = "012e604e1c7458645cb8b436f8fba789a51b257f"
-uuid = "9b13fd28-a010-5f03-acff-a1bbcff69959"
-version = "1.0.0"
-
 [[deps.Inflate]]
 git-tree-sha1 = "f5fc07d4e706b84f72d54eedcc1c13d92fb0871c"
 uuid = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
@@ -931,39 +1101,20 @@ git-tree-sha1 = "f550e6e32074c939295eb5ea6de31849ac2c9625"
 uuid = "83e8ac13-25f8-5344-8a64-a9f2b223428f"
 version = "0.5.1"
 
-[[deps.IntegralArrays]]
-deps = ["ColorTypes", "FixedPointNumbers", "IntervalSets"]
-git-tree-sha1 = "be8e690c3973443bec584db3346ddc904d4884eb"
-uuid = "1d092043-8f09-5a30-832f-7509e371ab51"
-version = "0.1.5"
-
-[[deps.IntelOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "d979e54b71da82f3a65b62553da4fc3d18c9004c"
-uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2018.0.3+2"
-
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
-
-[[deps.Interpolations]]
-deps = ["AxisAlgorithms", "ChainRulesCore", "LinearAlgebra", "OffsetArrays", "Random", "Ratios", "Requires", "SharedArrays", "SparseArrays", "StaticArrays", "WoodburyMatrices"]
-git-tree-sha1 = "00a19d6ab0cbdea2978fc23c5a6482e02c192501"
-uuid = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
-version = "0.14.0"
-
-[[deps.IntervalSets]]
-deps = ["Dates", "Random", "Statistics"]
-git-tree-sha1 = "57af5939800bce15980bddd2426912c4f83012d8"
-uuid = "8197267c-284f-5f27-9208-e0e47529a953"
-version = "0.7.1"
 
 [[deps.InverseFunctions]]
 deps = ["Test"]
 git-tree-sha1 = "b3364212fb5d870f724876ffcd34dd8ec6d98918"
 uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
 version = "0.1.7"
+
+[[deps.InvertedIndices]]
+git-tree-sha1 = "bee5f1ef5bf65df56bdd2e40447590b272a5471f"
+uuid = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
+version = "1.1.0"
 
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "7fd44fd4ff43fc60815f8e764c0f352b83c49151"
@@ -980,12 +1131,6 @@ git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"
 version = "1.0.0"
 
-[[deps.JLD2]]
-deps = ["FileIO", "MacroTools", "Mmap", "OrderedCollections", "Pkg", "Printf", "Reexport", "TranscodingStreams", "UUIDs"]
-git-tree-sha1 = "81b9477b49402b47fbe7f7ae0b252077f53e4a08"
-uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
-version = "0.4.22"
-
 [[deps.JLLWrappers]]
 deps = ["Preferences"]
 git-tree-sha1 = "abc9885a7ca2052a736a600f7fa66209f96506e1"
@@ -997,12 +1142,6 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.3"
-
-[[deps.JpegTurbo]]
-deps = ["CEnum", "FileIO", "ImageCore", "JpegTurbo_jll", "TOML"]
-git-tree-sha1 = "a77b273f1ddec645d1b7c4fd5fb98c8f90ad10a5"
-uuid = "b835a17e-a41a-41e7-81f0-2f016b05efe0"
-version = "0.1.1"
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1038,15 +1177,6 @@ deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdow
 git-tree-sha1 = "46a39b9c58749eefb5f2dc1178cb8fab5332b1ab"
 uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 version = "0.15.15"
-
-[[deps.LazyArtifacts]]
-deps = ["Artifacts", "Pkg"]
-uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
-
-[[deps.LazyModules]]
-git-tree-sha1 = "a560dd966b386ac9ae60bdd3a3d3a326062d3c3e"
-uuid = "8cdb02fc-e678-4876-92c5-9defec4f444e"
-version = "0.3.1"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -1134,22 +1264,11 @@ git-tree-sha1 = "5d4d2d9904227b8bd66386c1138cf4d5ffa826bf"
 uuid = "e6f89c97-d47a-5376-807f-9c37f3926c36"
 version = "0.4.9"
 
-[[deps.MKL_jll]]
-deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "e595b205efd49508358f7dc670a940c790204629"
-uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2022.0.0+0"
-
 [[deps.MacroTools]]
 deps = ["Markdown", "Random"]
 git-tree-sha1 = "3d3e902b31198a27340d0bf00d6ac452866021cf"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 version = "0.5.9"
-
-[[deps.MappedArrays]]
-git-tree-sha1 = "e8b359ef06ec72e8c030463fe02efe5527ee5142"
-uuid = "dbb5928d-eab1-5f90-85c2-b9b0edb7c900"
-version = "0.4.1"
 
 [[deps.Markdown]]
 deps = ["Base64"]
@@ -1157,9 +1276,9 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[deps.MbedTLS]]
 deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "Random", "Sockets"]
-git-tree-sha1 = "9f4f5a42de3300439cb8300236925670f844a555"
+git-tree-sha1 = "891d3b4e8f8415f53108b4918d0183e61e18015b"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "1.1.1"
+version = "1.1.0"
 
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1170,12 +1289,6 @@ git-tree-sha1 = "e498ddeee6f9fdb4551ce855a46f54dbd900245f"
 uuid = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
 version = "0.3.1"
 
-[[deps.MetaGraphs]]
-deps = ["Graphs", "JLD2", "Random"]
-git-tree-sha1 = "2af69ff3c024d13bde52b34a2a7d6887d4e7b438"
-uuid = "626554b9-1ddb-594c-aa3c-2596fe9399a5"
-version = "0.7.1"
-
 [[deps.Missings]]
 deps = ["DataAPI"]
 git-tree-sha1 = "bf210ce90b6c9eed32d25dbcae1ebc565df2687f"
@@ -1184,12 +1297,6 @@ version = "1.0.2"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
-
-[[deps.MosaicViews]]
-deps = ["MappedArrays", "OffsetArrays", "PaddedViews", "StackViews"]
-git-tree-sha1 = "b34e3bc3ca7c94914418637cb10cc4d1d80d877d"
-uuid = "e94cdb99-869f-56ef-bcf0-1ae2bcbe0389"
-version = "0.3.3"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
@@ -1200,26 +1307,8 @@ git-tree-sha1 = "a7c3d1da1189a1c2fe843a3bfa04d18d20eb3211"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
 version = "1.0.1"
 
-[[deps.NearestNeighbors]]
-deps = ["Distances", "StaticArrays"]
-git-tree-sha1 = "0e353ed734b1747fc20cd4cba0edd9ac027eff6a"
-uuid = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
-version = "0.4.11"
-
-[[deps.Netpbm]]
-deps = ["FileIO", "ImageCore"]
-git-tree-sha1 = "18efc06f6ec36a8b801b23f076e3c6ac7c3bf153"
-uuid = "f09324ee-3d7c-5217-9330-fc30815ba969"
-version = "1.0.2"
-
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
-
-[[deps.OffsetArrays]]
-deps = ["Adapt"]
-git-tree-sha1 = "1ea784113a6aa054c5ebd95945fa5e52c2f378e7"
-uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "1.12.7"
 
 [[deps.Ogg_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1230,18 +1319,6 @@ version = "1.3.5+1"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-
-[[deps.OpenEXR]]
-deps = ["Colors", "FileIO", "OpenEXR_jll"]
-git-tree-sha1 = "327f53360fdb54df7ecd01e96ef1983536d1e633"
-uuid = "52e1d378-f018-4a11-a4be-720524705ac7"
-version = "0.3.2"
-
-[[deps.OpenEXR_jll]]
-deps = ["Artifacts", "Imath_jll", "JLLWrappers", "Libdl", "Pkg", "Zlib_jll"]
-git-tree-sha1 = "923319661e9a22712f24596ce81c54fc0366f304"
-uuid = "18a262bb-aa17-5467-a713-aee519bc75cb"
-version = "3.1.1+0"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1276,24 +1353,6 @@ git-tree-sha1 = "b2a7af664e098055a7529ad1a900ded962bca488"
 uuid = "2f80f16e-611a-54ab-bc61-aa92de5b98fc"
 version = "8.44.0+0"
 
-[[deps.PNGFiles]]
-deps = ["Base64", "CEnum", "ImageCore", "IndirectArrays", "OffsetArrays", "libpng_jll"]
-git-tree-sha1 = "e925a64b8585aa9f4e3047b8d2cdc3f0e79fd4e4"
-uuid = "f57f5aa1-a3ce-4bc8-8ab9-96f992907883"
-version = "0.3.16"
-
-[[deps.PaddedViews]]
-deps = ["OffsetArrays"]
-git-tree-sha1 = "03a7a85b76381a3d04c7a1656039197e70eda03d"
-uuid = "5432bcbf-9aad-5242-b902-cca2824c8663"
-version = "0.5.11"
-
-[[deps.Parameters]]
-deps = ["OrderedCollections", "UnPack"]
-git-tree-sha1 = "34c0e9ad262e5f7fc75b10a9952ca7692cfc5fbe"
-uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-version = "0.12.3"
-
 [[deps.Parsers]]
 deps = ["Dates"]
 git-tree-sha1 = "0044b23da09b5608b4ecacb4e5e6c6332f833a7e"
@@ -1310,12 +1369,6 @@ version = "0.40.1+0"
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
-[[deps.PkgVersion]]
-deps = ["Pkg"]
-git-tree-sha1 = "a7a7e1a88853564e551e4eba8650f8c38df79b37"
-uuid = "eebad327-c553-4316-9ea0-9fa01ccd7688"
-version = "0.1.1"
-
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Statistics"]
 git-tree-sha1 = "8162b2f8547bc23876edd0c5181b27702ae58dce"
@@ -1330,9 +1383,9 @@ version = "1.3.0"
 
 [[deps.Plots]]
 deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "GeometryBasics", "JSON", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "Requires", "Scratch", "Showoff", "SparseArrays", "Statistics", "StatsBase", "UUIDs", "UnicodeFun", "Unzip"]
-git-tree-sha1 = "5a1e85f3aed2e0d3d99a4068037c8582597b89cf"
+git-tree-sha1 = "b29873144e57f9fcf8d41d107138a4378e035298"
 uuid = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-version = "1.31.3"
+version = "1.31.2"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "Markdown", "Random", "Reexport", "UUIDs"]
@@ -1340,39 +1393,33 @@ git-tree-sha1 = "8d1f54886b9037091edf146b517989fc4a09efec"
 uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 version = "0.7.39"
 
+[[deps.PooledArrays]]
+deps = ["DataAPI", "Future"]
+git-tree-sha1 = "a6062fe4063cdafe78f4a0a81cfffb89721b30e7"
+uuid = "2dfb63ee-cc39-5dd5-95bd-886bf059d720"
+version = "1.4.2"
+
 [[deps.Preferences]]
 deps = ["TOML"]
 git-tree-sha1 = "47e5f437cc0e7ef2ce8406ce1e7e24d44915f88d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
 version = "1.3.0"
 
+[[deps.PrettyTables]]
+deps = ["Crayons", "Formatting", "Markdown", "Reexport", "Tables"]
+git-tree-sha1 = "dfb54c4e414caa595a1f2ed759b160f5a3ddcba5"
+uuid = "08abe8d2-0d0c-5749-adfa-8a2ac140af0d"
+version = "1.3.1"
+
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-
-[[deps.ProgressMeter]]
-deps = ["Distributed", "Printf"]
-git-tree-sha1 = "d7a7aef8f8f2d537104f170139553b14dfe39fe9"
-uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
-version = "1.7.2"
-
-[[deps.QOI]]
-deps = ["ColorTypes", "FileIO", "FixedPointNumbers"]
-git-tree-sha1 = "18e8f4d1426e965c7b532ddd260599e1510d26ce"
-uuid = "4b34888f-f399-49d4-9bb3-47ed5cae4e65"
-version = "1.0.0"
 
 [[deps.Qt5Base_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "OpenSSL_jll", "Pkg", "Xorg_libXext_jll", "Xorg_libxcb_jll", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_keysyms_jll", "Xorg_xcb_util_renderutil_jll", "Xorg_xcb_util_wm_jll", "Zlib_jll", "xkbcommon_jll"]
 git-tree-sha1 = "c6c0f690d0cc7caddb74cef7aa847b824a16b256"
 uuid = "ea2cea3b-5b76-57ae-a6ef-0a8af62496e1"
 version = "5.15.3+1"
-
-[[deps.Quaternions]]
-deps = ["DualNumbers", "LinearAlgebra", "Random"]
-git-tree-sha1 = "b327e4db3f2202a4efafe7569fcbe409106a1f75"
-uuid = "94ee1d12-ae83-5a48-8b1c-48b8ff168ae0"
-version = "0.5.6"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
@@ -1381,17 +1428,6 @@ uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 [[deps.Random]]
 deps = ["SHA", "Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-
-[[deps.RangeArrays]]
-git-tree-sha1 = "b9039e93773ddcfc828f12aadf7115b4b4d225f5"
-uuid = "b3c3ace0-ae52-54e7-9d0b-2c1406fd6b9d"
-version = "0.3.2"
-
-[[deps.Ratios]]
-deps = ["Requires"]
-git-tree-sha1 = "dc84268fe0e3335a62e315a3a7cf2afa7178a734"
-uuid = "c84ed2f1-dad5-54f0-aa8e-dbefe2724439"
-version = "0.4.3"
 
 [[deps.RecipesBase]]
 git-tree-sha1 = "6bf3f380ff52ce0832ddd3a2a7b9538ed1bcca7d"
@@ -1409,12 +1445,6 @@ git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
-[[deps.RegionTrees]]
-deps = ["IterTools", "LinearAlgebra", "StaticArrays"]
-git-tree-sha1 = "4618ed0da7a251c7f92e869ae1a19c74a7d2a7f9"
-uuid = "dee08c22-ab7f-5625-9660-a9af2021b33f"
-version = "0.3.2"
-
 [[deps.RelocatableFolders]]
 deps = ["SHA", "Scratch"]
 git-tree-sha1 = "22c5201127d7b243b9ee1de3b43c408879dff60f"
@@ -1426,12 +1456,6 @@ deps = ["UUIDs"]
 git-tree-sha1 = "838a3a4188e2ded87a4f9f184b4b0d78a1e91cb7"
 uuid = "ae029012-a4dd-5104-9daa-d747884805df"
 version = "1.3.0"
-
-[[deps.Rotations]]
-deps = ["LinearAlgebra", "Quaternions", "Random", "StaticArrays", "Statistics"]
-git-tree-sha1 = "3177100077c68060d63dd71aec209373c3ec339b"
-uuid = "6038ab10-8711-5258-84ad-4b1120ba62dc"
-version = "1.3.1"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -1472,12 +1496,6 @@ git-tree-sha1 = "a6f404cc44d3d3b28c793ec0eb59af709d827e4e"
 uuid = "47aef6b3-ad0c-573a-a1e2-d07658019622"
 version = "1.2.1"
 
-[[deps.Sixel]]
-deps = ["Dates", "FileIO", "ImageCore", "IndirectArrays", "OffsetArrays", "REPL", "libsixel_jll"]
-git-tree-sha1 = "8fb59825be681d451c246a795117f317ecbcaa28"
-uuid = "45858cf5-a6b0-47a3-bbea-62219f50df47"
-version = "0.1.2"
-
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
@@ -1496,12 +1514,6 @@ deps = ["ChainRulesCore", "IrrationalConstants", "LogExpFunctions", "OpenLibm_jl
 git-tree-sha1 = "d75bda01f8c31ebb72df80a46c88b25d1c79c56d"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
 version = "2.1.7"
-
-[[deps.StackViews]]
-deps = ["OffsetArrays"]
-git-tree-sha1 = "46e589465204cd0c08b4bd97385e4fa79a0c770c"
-uuid = "cae243ae-269e-4f55-b966-ac2d0dc13c15"
-version = "0.1.1"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
@@ -1566,18 +1578,6 @@ version = "0.1.1"
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
-[[deps.TiffImages]]
-deps = ["ColorTypes", "DataStructures", "DocStringExtensions", "FileIO", "FixedPointNumbers", "IndirectArrays", "Inflate", "Mmap", "OffsetArrays", "PkgVersion", "ProgressMeter", "UUIDs"]
-git-tree-sha1 = "fcf41697256f2b759de9380a7e8196d6516f0310"
-uuid = "731e570b-9d59-4bfa-96dc-6df516fadf69"
-version = "0.6.0"
-
-[[deps.TiledIteration]]
-deps = ["OffsetArrays"]
-git-tree-sha1 = "5683455224ba92ef59db72d10690690f4a8dc297"
-uuid = "06e1c1a7-607b-532d-9fad-de7d9aa2abac"
-version = "0.3.1"
-
 [[deps.TranscodingStreams]]
 deps = ["Random", "Test"]
 git-tree-sha1 = "216b95ea110b5972db65aa90f88d8d89dcb8851c"
@@ -1597,11 +1597,6 @@ version = "1.4.0"
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
-
-[[deps.UnPack]]
-git-tree-sha1 = "387c1f73762231e86e0c9c5443ce3b4a0a9a0c2b"
-uuid = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
-version = "1.0.2"
 
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
@@ -1628,12 +1623,6 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "4528479aa01ee1b3b4cd0e6faef0e04cf16466da"
 uuid = "2381bf8a-dfd0-557d-9999-79630e7b1b91"
 version = "1.25.0+0"
-
-[[deps.WoodburyMatrices]]
-deps = ["LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "de67fa59e33ad156a590055375a30b23c40299d3"
-uuid = "efce3f68-66dc-5838-9240-27a6d6f5f9b6"
-version = "0.5.5"
 
 [[deps.XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "Zlib_jll"]
@@ -1811,12 +1800,6 @@ git-tree-sha1 = "94d180a6d2b5e55e447e2d27a29ed04fe79eb30c"
 uuid = "b53b4c65-9356-5827-b1ea-8c7a1a84506f"
 version = "1.6.38+0"
 
-[[deps.libsixel_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "78736dab31ae7a53540a6b752efc61f77b304c5b"
-uuid = "075b6546-f08a-558a-be8f-8157d0f608a5"
-version = "1.8.6+1"
-
 [[deps.libvorbis_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Ogg_jll", "Pkg"]
 git-tree-sha1 = "b910cb81ef3fe6e78bf6acee440bda86fd6ae00c"
@@ -1851,62 +1834,78 @@ version = "0.9.1+5"
 """
 
 # ╔═╡ Cell order:
-# ╟─29bc3a10-05de-11ed-387a-b70934c663f9
-# ╠═565a291c-2f40-4af9-8c2c-8b9a472153fd
-# ╟─5116ba76-3cad-4d29-82dd-23042fa16165
-# ╠═946ec7e6-77a1-4879-8782-8e6d2a5ccd54
-# ╟─2c3c5167-204a-4ab9-a2bf-772e4b7910b6
-# ╟─c2eece9b-1af8-429f-84aa-6cfbe052943f
-# ╠═b4c1e6e8-92f4-4558-a7ca-8378d2ed074a
-# ╟─c26bde01-9489-42b1-a238-f356181137f4
-# ╠═c3c27e20-6c9f-41dc-8adc-9b96d8076ded
-# ╠═7d7ea293-a047-497d-a140-32d35693191c
-# ╟─c6d0b3ba-f304-4946-8e4a-95470e2ed8ab
-# ╟─c110a361-cd9b-4a82-9d2e-3a173b8bcc43
-# ╟─1cc1cf11-f8f2-4b8d-b3a6-eb12539f0349
-# ╠═4afa7572-35df-4a68-9402-fd04a9da512e
-# ╟─b5eab760-9905-4cd4-b017-ff492283b620
-# ╟─30955cbe-c4bf-4a8b-be50-2136bfadb4ba
-# ╠═58cd0d11-ed34-47f8-99b3-dd67e72b6a9f
-# ╟─89f06296-db5c-4ff5-91bb-7f768d8e44f6
-# ╠═f4f4a323-7925-4142-8cc1-9e7b6a835304
-# ╟─82599cd2-e5bd-4436-b2c3-0336c7902544
-# ╠═6cb7546e-40ef-4764-a6cf-74d3ac583fa7
-# ╟─1dfb5dfe-2c2b-4363-afa0-390ea0e5261e
-# ╠═199f0402-d69a-457c-9dcf-7021e2dea749
-# ╟─2ee00755-6ea2-4f2e-ac5b-78da2ecd9a86
-# ╟─9512ffed-89e0-46b4-ada6-2a5334382100
-# ╟─d64c9e42-c17f-4fad-bd19-86b8367224ac
-# ╠═9bdddbd3-b9b0-4c09-81a4-b63b98d19195
-# ╟─3ebbe694-85dc-4754-8ea4-e845be6ff77e
-# ╠═a53e5a69-59df-4c4e-b858-ce750d869cf4
-# ╟─bab55d67-d673-4867-8171-fd78c4b8b6dc
-# ╠═0a01fc94-e91c-4413-89e5-956dc3df4769
-# ╟─8721e42f-327a-4704-a1e4-20ee7feeeffe
-# ╟─179de169-a3a4-4d92-a568-c0f7eaf0738b
-# ╟─5806879e-2287-43a5-8b80-2c1567ef9da0
-# ╠═3b80cc62-25b5-4c65-89d0-cf27ea2bb675
-# ╟─c705edf4-1fcd-492d-bf5a-f97ccc759aa3
-# ╠═674caa02-388e-4c91-9bf6-c74e85e2e271
-# ╠═60db0532-53a4-4c21-9cfb-e2450a3e3075
-# ╠═1484793a-8a7d-44d2-80be-919faadcb7ad
-# ╠═5788848a-5678-4915-9ad2-b6aa9b1bbc13
-# ╠═e18e5ee8-1cfc-4252-b38e-8b73f7a5fa55
-# ╠═b51bdd59-e3da-44db-98df-761023e3c7ff
-# ╠═fb95fa16-48d6-47d5-b908-aa8e9b5cc6ae
-# ╠═3a793383-7c32-4a53-83de-5255666faaca
-# ╟─729c1c65-13ed-450b-9cb2-cc4510066ca9
-# ╠═de2b8e88-7fc7-4458-b6e5-f9232c762604
-# ╟─dd24d626-109d-47ca-b944-2490589b01ba
-# ╠═649f1a93-a4f4-4f8f-911a-fc284e1d234b
-# ╟─2ad6a252-1efe-41d6-accc-cc78e6605260
-# ╠═3f3b7bf7-f4e3-4a52-bbba-0cb83dacc9d0
-# ╠═0c58c643-fcec-43c6-9889-3dc6ba864868
-# ╠═cecbac96-40fb-4bde-9292-589ea62ca5bb
-# ╠═f99a525f-766a-49fc-8a77-27c611089fb1
-# ╠═109ac79b-c387-46d3-943c-57ce0c2e7b34
-# ╠═df2780f2-23b9-4612-a435-3c0913b701b2
-# ╠═510426c3-c75f-4333-9d39-1ae784392ebc
-# ╠═d87fb254-ed5d-4426-93d9-138f3908a2ae
+# ╠═656ea700-045a-11ed-095e-41d8aa67b9af
+# ╟─671e7283-7ff4-497a-afcc-ca1eb1d43591
+# ╟─7c8c95be-4e4b-4bf3-b541-7e73abf02bd2
+# ╟─dad001a0-ff58-4a62-8e2a-97ecfd8a491d
+# ╟─4b01c4be-ce31-4bf8-88b5-ce46070d986f
+# ╟─e5bb9db5-2708-449a-a0ca-06daf96dba1d
+# ╟─2ce9ffd9-594a-4325-b293-89caea578263
+# ╟─4d3147fd-09fc-4a18-b7ae-3ca3a622013e
+# ╠═888f8c53-08dd-489c-9902-36874ad8d96b
+# ╠═9457c3fc-7e83-486f-84b6-30a42697b6f1
+# ╟─9d0fd8e0-85b0-41ac-baaa-fa2bf0c9265d
+# ╟─67c43de2-9314-4538-9a4c-a04d7af4fe83
+# ╟─6f568adb-8348-4fe5-8111-8704305a5782
+# ╠═580c8d80-b941-4697-8331-448f858374a4
+# ╟─9ca87661-e5b9-4cd1-beb1-e7eb2a41d5ea
+# ╟─30950c0f-fb6e-48ca-b533-906499be505f
+# ╟─2521c391-dd5b-4aae-9a66-d1ea09639560
+# ╟─acc19bba-dc4f-47b8-b920-b3b8bb847aa7
+# ╟─175b272f-601e-4b67-a8d7-cfaf115b88b2
+# ╟─02292df4-40c6-44c3-8515-3cb7d18b0283
+# ╟─9c3e4a77-9fa3-4f55-9486-0a1bf05249e3
+# ╠═73077b44-6d0b-4641-a3ef-bf7d00a5dcfe
+# ╠═d74053b1-b5d8-4eed-8832-b722b35e1926
+# ╟─434091e0-3db7-4cd6-ac13-6f6f5a803ac1
+# ╟─86f19fb9-125a-443d-aa8c-fcee8b3ba951
+# ╟─7451bf70-cee7-4f43-8d1b-3e83b5e1db62
+# ╟─cfb9c99a-2ca2-4b3e-96d7-e203c92baf2b
+# ╟─8ac046aa-f817-499c-8688-cc734b472c78
+# ╟─eb87622b-87e1-4366-95d1-d29fb4540224
+# ╟─b47c9ec0-8d85-4b6b-87c9-54a06ebc22c3
+# ╟─254643d0-5e86-4722-96e5-5bc7940d8ac8
+# ╠═e4fefa2f-404f-4034-9744-b1ce8592f52e
+# ╟─5705e51c-1752-4acd-8a11-6e7afaed0867
+# ╠═8d042281-61b2-4cf2-8f0f-4f42f0fb4050
+# ╠═826b1e26-36b8-4ba9-a535-b49600536526
+# ╟─b52b3a7b-a953-4d9f-9b00-6fd28714d20c
+# ╟─79d11ee0-24f7-44ac-aae8-655255e76dcf
+# ╟─86210bf9-b85d-419a-ac4f-3cc8a7babc3f
+# ╟─88616ad4-6168-4b93-87d9-7548f280c022
+# ╟─712b8861-d94f-4df6-8117-32e1c8fe1db3
+# ╟─2ef9ce68-5546-4b32-93c5-e4c07ade8563
+# ╟─1d6e5312-9749-40d0-941f-d1b19f839141
+# ╟─fcbaa7b5-35b4-4e4a-8a48-3948f05c0cce
+# ╟─941094ee-abf7-4e6c-8f87-d268ee634fd7
+# ╟─bc1004e7-3bb2-4f31-8d30-4f65781d9c26
+# ╟─d8051e9e-f762-49ef-8972-bae3b1936b22
+# ╠═571246a3-73cb-47c8-90e3-a565d4510441
+# ╠═c3c933d2-80c3-4d55-94f4-f6c1305545fe
+# ╟─c91ae1ca-6c1a-42c7-aab1-1dea4757d66a
+# ╟─a2b85e57-a858-47be-ad6e-db3566045626
+# ╠═26101d0d-05c8-46db-9371-a68ec9a7382d
+# ╟─52f8f449-4775-4b75-b437-d0125ae71a72
+# ╟─6d3262b9-35cf-4dac-b58a-2443c52525f4
+# ╠═308a4144-6792-409f-828c-3e9679641c69
+# ╟─573ce43b-2f49-4d44-9583-6fdd26edc630
+# ╟─4697df2d-5c28-4a9e-b79c-3b3fcb054257
+# ╟─79f5e786-6d1c-4b81-87ac-0ecec4a64b9e
+# ╟─d280654a-de48-4051-a120-161de6823e2a
+# ╟─bae766f2-4fda-46f0-8156-5bc3bae4515f
+# ╟─9c1c2152-a8f7-44f0-a6cf-7144a9338557
+# ╟─b9ba3ae1-c8ee-4222-9164-797e3586069c
+# ╟─4839aa4d-a51d-4c66-aec1-a2456ab824de
+# ╟─4ff62f2b-fb7a-4b44-9265-ba104e2aedb3
+# ╟─c96e988f-ea8b-466f-8ff3-620443e26f30
+# ╟─33510dcf-1c91-4651-81dd-867b201418de
+# ╟─49389be0-05ac-4c96-a9a6-266a4cca0eb8
+# ╟─9697b21e-7ca6-498f-bb24-6a7e073be40c
+# ╟─61dae2c4-7ed8-4fca-ba1d-aaf63b5f37ea
+# ╟─594cff31-f1ee-44d9-bed0-feb6c0731913
+# ╟─4759f0b7-af2a-4a29-a38b-0279475351d1
+# ╟─54bbfa45-3425-4ee3-b9a7-4ec5f38a9467
+# ╟─4cb7b542-a7bd-4450-a353-e014f41e44f2
+# ╟─e34bb748-4f14-4d95-a3dc-7f47e94cde2a
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
