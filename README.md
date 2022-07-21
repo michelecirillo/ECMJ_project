@@ -27,6 +27,3 @@ Aprire uno tra i due file `./knapsack/Knapsack-Problem.jl` e `./graph_trasversal
 I link sono:
 - [Knapsack Problem](./knapsack/Knapsack-Problem.jl.html)
 - [Graph Trasversal](./graph_trasversal/graph_trasversal.html)
-
-## Contributors
-- [TODO]
