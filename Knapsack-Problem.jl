@@ -271,7 +271,7 @@ md"""
 Ora che abbiamo i due algoritmi a disposizione può essere utile confrontarli per capire quale dei due sia più conveniente utilizzare.\
 Abbiamo un algoritmo che trova una soluzione ottima, perché non dovremmo usarlo?\
 La motivazione principale è che, mentre l'algoritmo greedy si occupa principalmente di ordinare gli elementi (che sappiamo avere un costo $\mathcal{O}(n \cdot logn)$) in base al loro rapporto $\frac{valore}{peso}$, l'algoritmo con programmazione dinamica alloca, scrive e legge una matrice di dimensione $(n+1)\cdot (W+1)$, la sua complessità è quindi un $\mathcal{O}(n\cdot W)$.\
-Il suo tempo di esecuzione non è una funzione polinomiale di n; piuttosto, è una funzione polinomiale di n e W, il più grande numero intero coinvolto nella definizione del problema. Algoritmi del genere sono detti **algoritmi pseudo-polinomiali**. Gli algoritmi pseudo-polinomiali possono essere ragionevolmente efficienti quando i numeri $\{w_i\}$ coinvolti nell'input sono ragionevolmente piccoli; tuttavia, diventano meno pratici man mano che questi numeri diventano grandi.\
+Il suo tempo di esecuzione non è una funzione polinomiale nella grandezza dell'istanza; piuttosto, è una funzione polinomiale in $n$ e $W$. Purtroppo però $W$ è esponenzialmente più grande della sua rappresentazione binaria. Algoritmi del genere sono detti **algoritmi pseudo-polinomiali**. Gli algoritmi pseudo-polinomiali possono essere ragionevolmente efficienti quando i numeri $\{w_i\}$ coinvolti nell'input sono ragionevolmente piccoli; tuttavia, diventano meno pratici man mano che questi numeri diventano grandi.\
 Vogliamo quindi confrontare i due algoritmi in base a vari parametri come _tempo di esecuzione_, _fattore d'approssimazione_, ecc...\
 Prima di far ciò, ridefiniamo le nostre funzioni in modo che prendano in input dei parametri che facciamo variare randomicamente.
 """
@@ -405,7 +405,7 @@ In media, il fattore d'approssimazione è:
 """
 
 # ╔═╡ 109ac79b-c387-46d3-943c-57ce0c2e7b34
-mean(dyn_prog_results)/mean(greedy_results)
+mean(greedy_results)/mean(dyn_prog_results)
 
 # ╔═╡ df2780f2-23b9-4612-a435-3c0913b701b2
 md"""
@@ -413,7 +413,12 @@ Nel caso peggiore, il fattore d'approssimazione è:
 """
 
 # ╔═╡ 510426c3-c75f-4333-9d39-1ae784392ebc
-maximum((x -> isnan(x) ? 0 : x).(dyn_prog_results ./ greedy_results))
+minimum((x -> isnan(x) ? Inf : x).(greedy_results ./ dyn_prog_results))
+
+# ╔═╡ d87fb254-ed5d-4426-93d9-138f3908a2ae
+md"""
+I risultati delle simulazioni sono d'accordo con la teoria che dice che l'algoritmo greedy è $\frac{1}{2}$-approssimante 
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1846,9 +1851,9 @@ version = "0.9.1+5"
 """
 
 # ╔═╡ Cell order:
-# ╠═29bc3a10-05de-11ed-387a-b70934c663f9
+# ╟─29bc3a10-05de-11ed-387a-b70934c663f9
 # ╠═565a291c-2f40-4af9-8c2c-8b9a472153fd
-# ╠═5116ba76-3cad-4d29-82dd-23042fa16165
+# ╟─5116ba76-3cad-4d29-82dd-23042fa16165
 # ╠═946ec7e6-77a1-4879-8782-8e6d2a5ccd54
 # ╟─2c3c5167-204a-4ab9-a2bf-772e4b7910b6
 # ╟─c2eece9b-1af8-429f-84aa-6cfbe052943f
@@ -1860,8 +1865,8 @@ version = "0.9.1+5"
 # ╟─c110a361-cd9b-4a82-9d2e-3a173b8bcc43
 # ╟─1cc1cf11-f8f2-4b8d-b3a6-eb12539f0349
 # ╠═4afa7572-35df-4a68-9402-fd04a9da512e
-# ╠═b5eab760-9905-4cd4-b017-ff492283b620
-# ╠═30955cbe-c4bf-4a8b-be50-2136bfadb4ba
+# ╟─b5eab760-9905-4cd4-b017-ff492283b620
+# ╟─30955cbe-c4bf-4a8b-be50-2136bfadb4ba
 # ╠═58cd0d11-ed34-47f8-99b3-dd67e72b6a9f
 # ╟─89f06296-db5c-4ff5-91bb-7f768d8e44f6
 # ╠═f4f4a323-7925-4142-8cc1-9e7b6a835304
@@ -1876,14 +1881,14 @@ version = "0.9.1+5"
 # ╟─3ebbe694-85dc-4754-8ea4-e845be6ff77e
 # ╠═a53e5a69-59df-4c4e-b858-ce750d869cf4
 # ╟─bab55d67-d673-4867-8171-fd78c4b8b6dc
-# ╟─0a01fc94-e91c-4413-89e5-956dc3df4769
+# ╠═0a01fc94-e91c-4413-89e5-956dc3df4769
 # ╟─8721e42f-327a-4704-a1e4-20ee7feeeffe
 # ╟─179de169-a3a4-4d92-a568-c0f7eaf0738b
 # ╟─5806879e-2287-43a5-8b80-2c1567ef9da0
 # ╠═3b80cc62-25b5-4c65-89d0-cf27ea2bb675
 # ╟─c705edf4-1fcd-492d-bf5a-f97ccc759aa3
 # ╠═674caa02-388e-4c91-9bf6-c74e85e2e271
-# ╟─60db0532-53a4-4c21-9cfb-e2450a3e3075
+# ╠═60db0532-53a4-4c21-9cfb-e2450a3e3075
 # ╠═1484793a-8a7d-44d2-80be-919faadcb7ad
 # ╠═5788848a-5678-4915-9ad2-b6aa9b1bbc13
 # ╠═e18e5ee8-1cfc-4252-b38e-8b73f7a5fa55
@@ -1902,5 +1907,6 @@ version = "0.9.1+5"
 # ╠═109ac79b-c387-46d3-943c-57ce0c2e7b34
 # ╠═df2780f2-23b9-4612-a435-3c0913b701b2
 # ╠═510426c3-c75f-4333-9d39-1ae784392ebc
+# ╠═d87fb254-ed5d-4426-93d9-138f3908a2ae
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
