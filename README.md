@@ -20,7 +20,7 @@ cd ECMJ_project
 julia -e "using Pluto; Pluto.run()"
 ```
 
-Aprire uno tra i due file `./knapsack/Knapsack-Problem.jl` e `./graph_trasversal/graph_trasversal.html`, attendere il (*lungo ...*) caricamento e divertirsi (senza farsi troppo male).
+Aprire uno tra i due file `./knapsack/Knapsack-Problem.jl` e `./graph_trasversal/graph_trasversal.it.jl`, attendere il (*lungo ...*) caricamento e divertirsi (senza farsi troppo male).
 
 ## Versione statica
 È possibile visualizzare una **versione statica** dei notebooks, però (come è facile immaginare) non è interattiva.
