@@ -82,7 +82,7 @@ md"""
 # Graph traversal
 In *computer science*, one of the most important problems is the **graph transversal** (or **graph search** or **graph visit**), that is the process of visiting the nodes of a graph.
 
-More precisely, given a graph $G (V, E)$ and a source $s \ in V$, we want to find a **path-tree** $T \subseteq E$ (not necessarily shortest) rooted in $s$.
+More precisely, given a graph $G (V, E)$ and a source $s \in V$, we want to find a **path-tree** $T \subseteq E$ (not necessarily shortest) rooted in $s$.
 
 If $G$ turns out to be disconnected, $T$ would not be covering.
 """
@@ -94,14 +94,14 @@ One reason we want to find a path tree is to *navigate a map*.
 
 For example, if we model a map as a graph where the nodes are the road intersections and an edge between two nodes represents the roads between two intersections, with a **visit** on this graph we are able to identify the path from a point `A` to a point `B`.
 
-If we then know that $T$ is composed of only **shortest paths** (i.e. T is a *shortest-path-tree* SPT) then we know that the path between `A` and `B` we have found is optimal.
+If we then know that $T$ is composed of only **shortest paths** (i.e. $T$ is a *shortest-path-tree* SPT) then we know that the path between `A` and `B` we have found is optimal.
 
 Another classic example is the problem of **solving a maze**, which we will be interested in in this notebook.
 
 As before, we can model a maze as a graph.
 In this graph we have a node for each intersection, plus two extra nodes: one for the **entrance** and one for the **exit**.
 
-There is a border for each corridor in the maze.
+There is a edge for each corridor in the maze.
 
 	How can we get out of it?
 
@@ -116,7 +116,7 @@ In the **breadth-first-search** (in short **BFS**), the nodes are visited in **n
 Therefore, let source $s \in V$ and $d_G(s, v)$ be the **distance** of node $v$ from source $s$ in $G$, for all $v \in V$.
 
 The first node visited will be $s$, because $d_G(s, s) = 0$.
-Then all neighboring nodes $v \in N (s)$ (or all nodes at distance $d_G (s, v) = 1$) will be visited, where $N(s)$ is the neighborhood of $s$.
+Then all neighboring nodes $v \in N(s)$ (or all nodes at distance $d_G (s, v) = 1$) will be visited, where $N(s)$ is the neighborhood of $s$.
 Then, all the neighbors of the neighbors of $s$ will be visited, that is, all those nodes at distance $d_G (s, v) = 2$.
 
 And so on...
@@ -125,7 +125,7 @@ And so on...
 # ╔═╡ 2ce9ffd9-594a-4325-b293-89caea578263
 md"""
 The algorithm works as follows:
-- create a $Q$ queue.
+- create a queue $Q$.
 - mark $s$ as visited and enter it in $Q$
 - until the queue is empty:
    - remove the last element $u$ ($u$ = dequeue($Q$))
@@ -140,7 +140,7 @@ The algorithm works as follows:
 md"""
 The time complexity of this algorithm is $O(|V| + |E|)$ because:
 - each node is added and removed from the $Q$ queue (at most if $G$ is connected) once. Since queuing and de-queuing take constant time we will have $O(|V|)$ time.
-2. for each visited node, all its neighbors (i.e. all its incident edges) are looked at. Therefore there will be a contribution of $\sum_{v \in V} \deg(v) \in O(|E|)$.
+- for each visited node, all its neighbors (i.e. all its incident edges) are looked at. Therefore there will be a contribution of $\sum_{v \in V} \deg(v) \in O(|E|)$.
 
 In total $O(|V|+|E|)$.
 """
@@ -269,8 +269,7 @@ end
 # ╔═╡ 6f568adb-8348-4fe5-8111-8704305a5782
 DataFrame(
 	(color = [colorant"purple", colorant"red", colorant"green", colorant"lightblue"],
-	state=["current node", "border", "visited","unvisited"]
-	)
+	state=["current node", "border", "visited","unvisited"])
 )
 
 # ╔═╡ 580c8d80-b941-4697-8331-448f858374a4
@@ -292,7 +291,7 @@ md"""
 ## DFS - Depth-first search
 In **depth-first-search** (in short **DFS**) one proceeds by visiting the nodes, *from neighbor to neighbor*, until no more unvisited nodes are encountered.
 
-The implementation is **very similar** to that of the BFS visit, with the difference that instead of using a $Q$ queue, a $S$ stack is used.
+The implementation is **very similar** to that of the BFS visit, with the difference that instead of using a queue $Q$, a stack $S$ is used.
 """
 
 # ╔═╡ 02292df4-40c6-44c3-8515-3cb7d18b0283
@@ -300,8 +299,8 @@ md"""
 Thus, the algorithm works as follows:
 - create a stack $S$.
 - mark $s$ as visited and enter it in $S$
-- until the queue is empty:
-   - pop the first element $u$ on top if $S$ ($u$ = pop($S$))
+- until the stack is empty:
+   - pop the first element $u$ on top of $S$ ($u$ = pop($S$))
    - for each neighboring $v$ of $u$:
       - if $v$ is not marked as visited
          - mark $v$ as visited
@@ -394,17 +393,17 @@ $$\pi^*(v) = \min_{e = (u,v) : u \in S} d(u) + w(e)$$
 md"""
 To efficiently keep track of node distances, we'll make use of a famous data structure: the **priority queue**.
 
-Let $PQ$ be our priority queue, where the **keys** are the nodes and the values are the estimates of the **distances** of $s$.
+Let $PQ$ be our priority queue, where the **keys** are the nodes and the **values** are the estimates of the **distances** of $s$.
 
 Initially every node outside $S$ will have an estimate of $d(v) = \infty$, so $PQ\left[ v \right] = \infty$, instead $PQ\left[ s \right] = 0$.
 
-Whenever the node $v$ with the **minimum key** is removed, we know that its value $PQ\left[ v \right]$ will minimize $\pi^*(v)$
+Whenever the node $v$ with the **minimum value** is removed, we know that its $PQ\left[ v \right]$ will minimize $\pi^*(v)$
 
 $$\pi^*(v) = \min_{e = (u,v) : u \in S} d(u) + w(e)$$
 
 and so it can be inserted into $S$.
 
-After that, for every other neighboring $x$ of $v$, we can update the key (or estimate of $d(x)$) of $x$ as follows:
+After that, for every other neighboring $x$ of $v$, we can update the value (or estimate of $d(x)$) of $x$ as follows:
 - if $d(v) + w((v, x)) \leq PQ \left[x \right]$ then set $PQ \left[x \right] = d(v) + w((v, x ))$.
 - otherwise leave $PQ \left[x \right]$ unchanged.
 
@@ -415,11 +414,11 @@ When $PQ$ is empty, we're done!
 md"""
 Calculating the time complexity is more tricky than before...
 
-If the priority queue is implemented with **binomial heap**, any necessary operation (**inserting an element**, **removing the minimum** and **updating the key**) are performed in $O(\log{n})$ time.
+If the priority queue is implemented with **binomial heap**, any necessary operation (**inserting an element**, **removing the minimum** and **updating the value**) are performed in $O(\log{n})$ time.
 
 Therefore:
 - each node is inserted and removed (at most, if $G$ is connected) once, so $O(|V|)$ insertion operations and $O(|V|)$ minimum remove operations will be performed.
-- at most the key of each node $v$ can be updated for each of its neighbors, so $O (|E|)$ key update operations will be performed.
+- at most the value of each node $v$ can be updated for each of its neighbors, so $O(|E|)$ value update operations will be performed.
 
 In conclusion, the complexity turns out to be $O\left((|V| + |E|)\log{|V|}\right)$.
 If we assume that $G$ is connected then $|E| \in \Omega(|V|)$, so we will have $O(|E| \log{|V|})$.
@@ -523,7 +522,7 @@ DataFrame("node"=>1:nv(wg), "dist"=>dist)
 
 # ╔═╡ 1d6e5312-9749-40d0-941f-d1b19f839141
 md"""
-> **Remark:** it is possible to apply the Dijkstra's algorithm also on *unweighted graphs*. Just observe that an unweighted graph can be represented by a weighted graph where all nodes have the **same weight** (e.g. $w (e) = 1$ for all $e \in E$).
+> **Remark:** it is possible to apply the Dijkstra's algorithm also on *unweighted graphs*. Just observe that an unweighted graph can be represented by a weighted graph where all nodes have the **same weight** (e.g. $w(e) = 1$ for all $e \in E$).
 """
 
 # ╔═╡ fcbaa7b5-35b4-4e4a-8a48-3948f05c0cce
@@ -744,7 +743,7 @@ t₆ ≤ last_index₃ ? plot_search(dijk_search, t₆, locs_x=x_coord, locs_y=y
 md"""
 ### Comparisons
 Below are the lengths of the preformed paths of the three algorithms.
-We observe that the BFS and Dijkstra's algorithms always generate an **optimal solution**, while DFS could generate a **worse solution** (if not in the example, try to rerun the DFS visit or generate a new labyrinth).
+We observe that the BFS and Dijkstra's algorithms always generate an **optimal solution**, while DFS could generate a **worse solution** (if not in the example, try to generate a new labyrinth).
 """
 
 # ╔═╡ 4cb7b542-a7bd-4450-a353-e014f41e44f2
